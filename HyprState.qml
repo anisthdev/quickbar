@@ -13,6 +13,10 @@ Singleton {
     id: root
 
     property int focusedId: 1
+    // The focused window; an empty address when the workspace is empty
+    property string activeAddress: ""
+    property string activeClass: ""
+    property string activeTitle: ""
     // id -> { windows, urgent }
     property var workspaces: ({})
 
@@ -29,6 +33,25 @@ Singleton {
             case "urgent":
                 refresh.urgentAddress = event.data;
                 break;
+            // "class,title"; the class never has a comma, the title may
+            case "activewindow":
+                {
+                    const comma = event.data.indexOf(",");
+                    root.activeClass = event.data.slice(0, comma);
+                    root.activeTitle = event.data.slice(comma + 1);
+                    return;
+                }
+            case "activewindowv2":
+                root.activeAddress = event.data ? `0x${event.data}` : "";
+                return;
+            // "address,title"
+            case "windowtitlev2":
+                {
+                    const comma = event.data.indexOf(",");
+                    if (`0x${event.data.slice(0, comma)}` === root.activeAddress)
+                        root.activeTitle = event.data.slice(comma + 1);
+                    return;
+                }
             case "workspacev2":
             case "focusedmonv2":
             case "createworkspacev2":
@@ -54,20 +77,29 @@ Singleton {
     QtObject {
         id: refresh
         property string urgentAddress: ""
+        property bool seeded: false
     }
 
     Process {
         id: query
         running: true
-        command: ["sh", "-c", "hyprctl -j workspaces; echo; hyprctl -j activeworkspace; echo; hyprctl -j clients"]
+        command: ["sh", "-c", "hyprctl -j workspaces; echo; hyprctl -j activeworkspace; echo; hyprctl -j clients; echo; hyprctl -j activewindow"]
         stdout: StdioCollector {
             onStreamFinished: {
-                // Three JSON documents, separated by the echoed newlines
+                // Four JSON documents, separated by the echoed newlines
                 const parts = text.split(/\n(?=[\[{])/);
                 try {
                     const list = JSON.parse(parts[0]);
                     const active = JSON.parse(parts[1]);
                     const clients = JSON.parse(parts[2]);
+                    // Only needed once: events keep it current after that
+                    if (!refresh.seeded) {
+                        const win = JSON.parse(parts[3]);
+                        root.activeAddress = win.address ?? "";
+                        root.activeClass = win.class ?? "";
+                        root.activeTitle = win.title ?? "";
+                        refresh.seeded = true;
+                    }
                     const next = {};
                     for (const ws of list)
                         next[ws.id] = {
