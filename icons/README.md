@@ -44,3 +44,9 @@ Bluetooth device icons (Bluetooth menu), converted with `--bold 0.6`:
 | bt_generic | core/res/res/drawable/ic_settings_bluetooth.xml |
 | bt_speakers | packages/SettingsLib/res/drawable/ic_bt_le_audio_speakers.xml |
 | bt_earbuds | packages/SettingsLib/res/drawable/ic_bt_untethered_earbuds.xml |
+
+Wi-Fi menu:
+
+| File | AOSP source |
+|---|---|
+| lock | packages/SystemUI/res/drawable/qs_ic_wifi_lock.xml |

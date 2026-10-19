@@ -1,4 +1,3 @@
-import Quickshell
 import QtQuick
 import ".."
 import "../components"
@@ -6,14 +5,6 @@ import "../components"
 // Network, Bluetooth and audio share one tinted segment, with battery
 // sitting on the plain background beside it, like the waybar layout.
 Pill {
-    id: root
-
-    readonly property string controlPanel: Quickshell.env("HOME") + "/.local/bin/menus/control-panel-script"
-
-    function openPanel(page) {
-        Quickshell.execDetached([controlPanel, "--page", page]);
-    }
-
     padding: 5
     spacing: 0
 
@@ -34,9 +25,7 @@ Pill {
             id: segment
             anchors.verticalCenter: parent.verticalCenter
 
-            Network {
-                onClicked: root.openPanel("wifi")
-            }
+            Network {}
             BluetoothStatus {}
             Audio {}
         }

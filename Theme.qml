@@ -16,6 +16,11 @@ Singleton {
     readonly property int radius: 10
     readonly property int gap: 10
 
+    // Opacity for every matugen colour, replacing the 0.8 in colors.css.
+    // Hyprland's blur grain shows through whatever isn't opaque, so this
+    // trades see-through for smoothness (windows sit at 0.9).
+    readonly property real alpha: 0.85
+
     readonly property int animFast: 150
     readonly property int animNormal: 280
 
@@ -46,12 +51,12 @@ Singleton {
     property color on_tertiary_container: Qt.rgba(175 / 255, 240 / 255, 213 / 255, 0.8)
 
     function parse(css) {
-        const re = /@define-color\s+(\w+)\s+rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/g;
+        const re = /@define-color\s+(\w+)\s+rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)/g;
         let m;
         while ((m = re.exec(css)) !== null) {
             if (root[m[1]] === undefined)
                 continue;
-            root[m[1]] = Qt.rgba(m[2] / 255, m[3] / 255, m[4] / 255, parseFloat(m[5]));
+            root[m[1]] = Qt.rgba(m[2] / 255, m[3] / 255, m[4] / 255, root.alpha);
         }
     }
 

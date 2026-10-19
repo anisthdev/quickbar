@@ -20,7 +20,7 @@ PopupWindow {
     // Room around the panel for its shadow, and below it for the overshoot
     readonly property real shadowPad: 32
     readonly property real topPad: 8
-    readonly property real fullHeight: column.implicitHeight + 2 * column.anchors.margins
+    readonly property real fullHeight: column.implicitHeight + 2 * column.anchors.topMargin
 
     // 0 = folded, 1 = open; overshoots past 1 while springing open
     property real reveal: 0
@@ -143,9 +143,11 @@ PopupWindow {
         width: panel.width
         height: panel.height
         radius: panel.radius
-        offset.y: 6
+        offset.y: 4
         blur: 24
-        color: Qt.rgba(0, 0, 0, 0.4)
+        // Under Hyprland's popups_ignorealpha (0.2) everywhere, or the
+        // darker part of the shadow gets blurred into a grainy strip
+        color: Qt.rgba(0, 0, 0, 0.19)
         opacity: panel.opacity
         scale: panel.scale
         transformOrigin: Item.Top
@@ -177,7 +179,9 @@ PopupWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: 10
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: 12
             spacing: 4
         }
     }

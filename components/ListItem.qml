@@ -5,37 +5,52 @@ import ".."
 // settings dialogs: rows of a group share round outer corners and have
 // tight corners between them. A selected row fills with the primary colour
 // and rounds all its corners. Children go on the right (battery, check
-// mark...). Rows stagger in with their menu through `shown`/`revealIndex`.
+// mark...); `extra` holds content that slides open below the row while
+// `expanded`. Rows stagger in with their menu through `shown`/`revealIndex`.
 Rectangle {
     id: root
 
     property string icon
     property string text
+    property string subtitle
+    property real iconSize: 20
     property bool first: false
     property bool last: false
     property bool selected: false
     property bool clickable: false
+    property bool expanded: false
     // Entrance with the menu, see MenuReveal
     property bool shown: true
     property int revealIndex: 0
     default property alias trailing: trailingRow.data
+    property alias extra: extraArea.data
 
     signal clicked
 
+    readonly property real rowHeight: 56
     readonly property real outerRadius: 20
-    readonly property real innerRadius: 6
+    // Android: 4dp on 72dp rows, so about 3 on these 56px rows
+    readonly property real innerRadius: 3
     // Not readonly, so the corner changes can animate
     property real topCorners: selected || first ? outerRadius : innerRadius
     property real bottomCorners: selected || last ? outerRadius : innerRadius
 
     width: parent?.width ?? 0
-    height: 56
+    height: rowHeight + (expanded ? extraArea.childrenRect.height : 0)
+    clip: true
     topLeftRadius: topCorners
     topRightRadius: topCorners
     bottomLeftRadius: bottomCorners
     bottomRightRadius: bottomCorners
-    color: selected ? Theme.primary_container : clickable && mouse.containsMouse ? Theme.surface_container_highest : Theme.surface_container_high
+    color: selected ? Theme.primary_container : clickable && mouse.containsMouse && !expanded ? Theme.surface_container_highest : Theme.surface_container_high
 
+    Behavior on height {
+        NumberAnimation {
+            duration: Theme.animNormal
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: Theme.emphasizedDecel
+        }
+    }
     Behavior on topCorners {
         NumberAnimation {
             duration: Theme.animNormal
@@ -54,12 +69,22 @@ Rectangle {
         }
     }
 
+    MouseArea {
+        id: mouse
+
+        width: parent.width
+        height: root.rowHeight
+        enabled: root.clickable
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked()
+    }
+
     Rectangle {
         id: badge
 
-        anchors.left: parent.left
-        anchors.leftMargin: 10
-        anchors.verticalCenter: parent.verticalCenter
+        x: 10
+        y: (root.rowHeight - height) / 2
         width: 36
         height: 36
         radius: 18
@@ -74,19 +99,37 @@ Rectangle {
         Icon {
             anchors.centerIn: parent
             name: root.icon
-            size: 20
+            size: root.iconSize
             color: root.selected ? Theme.on_primary : Theme.on_primary_container
         }
     }
 
-    Label {
+    Column {
         anchors.left: badge.right
         anchors.leftMargin: 12
         anchors.right: trailingRow.left
         anchors.rightMargin: 12
-        text: root.text
-        color: root.selected ? Theme.on_primary_container : Theme.on_surface
-        elide: Text.ElideRight
+        y: (root.rowHeight - height) / 2
+
+        Label {
+            anchors.verticalCenter: undefined
+            width: parent.width
+            text: root.text
+            color: root.selected ? Theme.on_primary_container : Theme.on_surface
+            elide: Text.ElideRight
+        }
+
+        Label {
+            anchors.verticalCenter: undefined
+            width: parent.width
+            visible: text !== ""
+            text: root.subtitle
+            color: root.selected ? Theme.on_primary_container : Theme.on_surface_variant
+            opacity: root.selected ? 0.8 : 1
+            font.pixelSize: 12
+            font.weight: Font.Medium
+            elide: Text.ElideRight
+        }
     }
 
     Row {
@@ -94,18 +137,16 @@ Rectangle {
 
         anchors.right: parent.right
         anchors.rightMargin: 16
-        anchors.verticalCenter: parent.verticalCenter
+        y: (root.rowHeight - height) / 2
         spacing: 8
     }
 
-    MouseArea {
-        id: mouse
+    Item {
+        id: extraArea
 
-        anchors.fill: parent
-        enabled: root.clickable
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        y: root.rowHeight
+        width: parent.width
+        height: childrenRect.height
     }
 
     MenuReveal {
