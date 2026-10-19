@@ -61,35 +61,11 @@ Dropdown {
 
     menuWidth: 320
 
-    // Wi-Fi switch
-    Rectangle {
-        id: header
-
-        width: parent.width
-        height: 56
-        radius: 20
-        color: Theme.surface_container_high
-
-        Label {
-            anchors.left: parent.left
-            anchors.leftMargin: 18
-            text: "Wi-Fi"
-            color: Theme.on_surface
-            font.pixelSize: 15
-        }
-
-        Switch {
-            anchors.right: parent.right
-            anchors.rightMargin: 14
-            anchors.verticalCenter: parent.verticalCenter
-            checked: root.wifiOn
-            onToggled: Networking.wifiEnabled = !root.wifiOn
-        }
-
-        MenuReveal {
-            target: header
-            shown: root.open
-        }
+    SwitchRow {
+        text: "Wi-Fi"
+        checked: root.wifiOn
+        shown: root.open
+        onToggled: Networking.wifiEnabled = !root.wifiOn
     }
 
     Label {

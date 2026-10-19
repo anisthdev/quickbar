@@ -3,12 +3,13 @@ import QtQuick
 import ".."
 import "../components"
 
-// Connected Bluetooth devices with their battery levels, as a Material 3
-// grouped list. Rows are informational only.
+// A Bluetooth switch, then connected devices with their battery levels as
+// a Material 3 grouped list. Device rows are informational only.
 Dropdown {
     id: root
 
-    readonly property bool powered: Bluetooth.defaultAdapter?.enabled ?? false
+    readonly property var adapter: Bluetooth.defaultAdapter
+    readonly property bool powered: adapter?.enabled ?? false
     readonly property var devices: Bluetooth.devices.values.filter(d => d.connected)
 
     // BlueZ's freedesktop icon name -> one of Android's device icons
@@ -33,13 +34,24 @@ Dropdown {
 
     menuWidth: 300
 
+    SwitchRow {
+        text: "Bluetooth"
+        checked: root.powered
+        shown: root.open
+        onToggled: {
+            if (root.adapter)
+                root.adapter.enabled = !root.powered;
+        }
+    }
+
     Label {
         id: heading
 
         anchors.verticalCenter: undefined
         leftPadding: 12
-        topPadding: 6
-        bottomPadding: 6
+        topPadding: 8
+        bottomPadding: 4
+        visible: root.powered
         text: "Connected devices"
         color: Theme.on_surface_variant
         font.pixelSize: 13
@@ -47,6 +59,7 @@ Dropdown {
         MenuReveal {
             target: heading
             shown: root.open
+            index: 1
         }
     }
 
@@ -64,7 +77,7 @@ Dropdown {
             first: index === 0
             last: index === root.devices.length - 1
             shown: root.open
-            revealIndex: index + 1
+            revealIndex: index + 2
 
             BatteryIcon {
                 visible: row.modelData.batteryAvailable
@@ -97,7 +110,7 @@ Dropdown {
         MenuReveal {
             target: empty
             shown: root.open
-            index: 1
+            index: 2
         }
     }
 }
