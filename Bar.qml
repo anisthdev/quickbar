@@ -29,6 +29,7 @@ PanelWindow {
         Launcher {}
         Glance {}
         Workspaces {}
+        PhoneLive {}
         Submap {}
     }
 
