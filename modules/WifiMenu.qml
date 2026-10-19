@@ -87,15 +87,16 @@ Dropdown {
         }
     }
 
-    // Five rows tall, then scrolls. ScriptModel updates rows in place, so
-    // networks found mid-scroll don't reset the view.
+    // Five rows plus the top of a sixth, so it's clear the list scrolls.
+    // ScriptModel updates rows in place, so networks found mid-scroll don't
+    // reset the view.
     ListView {
         id: list
 
         readonly property real rowStep: 56 + spacing
 
         width: parent.width
-        height: Math.min(contentHeight, 5 * rowStep - spacing)
+        height: Math.min(contentHeight, 5 * rowStep + 22)
         spacing: 4
         clip: true
         boundsBehavior: Flickable.StopAtBounds
