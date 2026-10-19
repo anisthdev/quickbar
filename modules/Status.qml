@@ -2,32 +2,22 @@ import QtQuick
 import ".."
 import "../components"
 
-// Network, Bluetooth and audio share one tinted segment, with battery
-// sitting on the plain background beside it, like the waybar layout.
+// Network, Bluetooth and audio as a connected button group, with battery
+// beside it on the plain background.
 Pill {
     padding: 5
-    spacing: 0
+    spacing: 6
 
-    Rectangle {
+    Row {
         anchors.verticalCenter: parent.verticalCenter
-        implicitWidth: segment.implicitWidth
-        implicitHeight: Theme.barHeight - 10
-        radius: 8
-        color: Theme.inverse_primary
+        spacing: 3
 
-        Behavior on color {
-            ColorAnimation {
-                duration: Theme.animNormal
-            }
+        Network {
+            first: true
         }
-
-        Row {
-            id: segment
-            anchors.verticalCenter: parent.verticalCenter
-
-            Network {}
-            BluetoothStatus {}
-            Audio {}
+        BluetoothStatus {}
+        Audio {
+            last: true
         }
     }
 

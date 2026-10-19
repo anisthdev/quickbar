@@ -122,6 +122,7 @@ Pill {
 
             Label {
                 text: root.appName
+                font.weight: Font.DemiBold
             }
 
             Label {
@@ -129,7 +130,7 @@ Pill {
                 width: Math.min(implicitWidth, 420)
                 text: root.title
                 color: Theme.on_surface_variant
-                font.weight: Font.Medium
+                font.weight: Font.Normal
                 elide: Text.ElideRight
             }
         }

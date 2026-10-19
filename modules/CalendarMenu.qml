@@ -132,7 +132,7 @@ Dropdown {
                 anchors.verticalCenter: parent.verticalCenter
                 width: root.onCurrentMonth ? 0 : todayLabel.implicitWidth + 24
                 height: 32
-                radius: 16
+                radius: Theme.radius
                 clip: true
                 color: todayMouse.containsMouse ? Theme.primary : Theme.primary_container
                 opacity: root.onCurrentMonth ? 0 : 1

@@ -70,7 +70,7 @@ Dropdown {
         Item {
             id: bar
 
-            readonly property real outer: height * 0.38
+            readonly property real outer: Theme.radius
             readonly property real inner: 3
             readonly property real gap: 4
             // Fills up to the level as the card opens
@@ -177,8 +177,8 @@ Dropdown {
                 readonly property bool selected: PowerProfiles.profile === modelData.profile
                 readonly property bool first: index === 0
                 readonly property bool last: index === modes.options.length - 1
-                property real leftCorners: selected || first ? 20 : 6
-                property real rightCorners: selected || last ? 20 : 6
+                property real leftCorners: selected || first ? Theme.radius : 4
+                property real rightCorners: selected || last ? Theme.radius : 4
 
                 width: (modes.width - modes.spacing * (modes.options.length - 1)) / modes.options.length
                 height: 64

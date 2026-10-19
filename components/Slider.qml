@@ -47,8 +47,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, root.handleX - root.gap)
         height: root.trackHeight
-        topLeftRadius: 16
-        bottomLeftRadius: 16
+        topLeftRadius: Theme.radius
+        bottomLeftRadius: Theme.radius
         topRightRadius: 4
         bottomRightRadius: 4
         color: root.activeColor
@@ -68,8 +68,8 @@ Item {
         height: root.trackHeight
         topLeftRadius: 4
         bottomLeftRadius: 4
-        topRightRadius: 16
-        bottomRightRadius: 16
+        topRightRadius: Theme.radius
+        bottomRightRadius: Theme.radius
         color: Theme.surface_container_highest
 
         // Stop indicator

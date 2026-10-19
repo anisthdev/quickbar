@@ -13,10 +13,11 @@ StatusItem {
     readonly property bool powered: Bluetooth.defaultAdapter?.enabled ?? false
     readonly property int connected: Bluetooth.devices.values.filter(d => d.connected).length
 
-    // Android has no "off" Bluetooth icon, so off is the plain icon dimmed
+    // Android has no "off" Bluetooth icon; off is the plain icon, unfilled
     icon: connected > 0 ? "bluetooth_connected" : "bluetooth"
     iconSize: 20
-    foreground: powered ? Theme.on_surface : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.4)
+    active: powered
+    open: menu.open
     text: powered ? String(connected) : ""
 
     onClicked: event => {

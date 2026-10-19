@@ -253,10 +253,10 @@ Dropdown {
 
                 width: parent.width
                 height: 44
-                topLeftRadius: first ? 20 : 4
-                topRightRadius: first ? 20 : 4
-                bottomLeftRadius: last ? 20 : 4
-                bottomRightRadius: last ? 20 : 4
+                topLeftRadius: first ? Theme.radius : 4
+                topRightRadius: first ? Theme.radius : 4
+                bottomLeftRadius: last ? Theme.radius : 4
+                bottomRightRadius: last ? Theme.radius : 4
                 color: Theme.surface_container_high
 
                 Label {

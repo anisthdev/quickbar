@@ -32,7 +32,7 @@ Item {
         anchors.rightMargin: 8
         anchors.top: parent.top
         height: 44
-        radius: 14
+        radius: Theme.radius
         color: Theme.surface_container_highest
         border.width: input.activeFocus ? 2 : 0
         border.color: Theme.primary
@@ -73,7 +73,7 @@ Item {
         anchors.top: parent.top
         width: buttonLabel.implicitWidth + 32
         height: 44
-        radius: 22
+        radius: Theme.radius
         color: input.text === "" ? Theme.surface_container_highest : Theme.primary
 
         Behavior on color {

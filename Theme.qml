@@ -16,6 +16,8 @@ Singleton {
     readonly property int fontSize: 14
     readonly property int barHeight: 38
     readonly property int radius: 10
+    // Menus and cards; what sits inside them uses radius
+    readonly property int cardRadius: 16
     readonly property int gap: 10
 
     // Opacity for every matugen colour, replacing the 0.8 in colors.css.

@@ -27,7 +27,8 @@ Pill {
     padding: 8
     implicitHeight: Theme.barHeight - 10
     anchors.verticalCenter: parent?.verticalCenter
-    color: hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+    radius: 8
+    color: "transparent"
     visible: data !== null
     clickable: true
     onClicked: {

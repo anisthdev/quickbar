@@ -6,7 +6,7 @@ Text {
     color: Theme.on_background
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontSize
-    font.weight: Font.Bold
+    font.weight: Font.Medium
 
     Behavior on color {
         ColorAnimation {

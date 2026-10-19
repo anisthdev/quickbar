@@ -14,6 +14,10 @@ Rectangle {
     // frame by frame instead of trailing behind it
     property bool animateWidth: true
     readonly property alias hovered: mouse.containsMouse
+    readonly property alias pressed: mouse.pressed
+    // Material hover and press state layer, in the content's colour
+    property bool stateLayer: clickable
+    property color stateColor: Theme.on_surface
 
     signal clicked(var event)
     signal scrolled(var event)
@@ -47,6 +51,24 @@ Rectangle {
         cursorShape: root.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
         onClicked: event => root.clicked(event)
         onWheel: event => root.scrolled(event)
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: root.stateLayer
+        radius: root.radius
+        topLeftRadius: root.topLeftRadius
+        topRightRadius: root.topRightRadius
+        bottomLeftRadius: root.bottomLeftRadius
+        bottomRightRadius: root.bottomRightRadius
+        color: root.stateColor
+        opacity: root.pressed ? 0.12 : root.hovered ? 0.08 : 0
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: Theme.animFast
+            }
+        }
     }
 
     Row {

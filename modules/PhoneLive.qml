@@ -157,6 +157,7 @@ Item {
         padding: 10
         spacing: 7
         color: Theme.primary_container
+        stateColor: Theme.on_primary_container
         clickable: true
         scale: Math.max(0, root.presence)
         transformOrigin: Item.Left

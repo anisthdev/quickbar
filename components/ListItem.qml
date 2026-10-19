@@ -33,7 +33,7 @@ Rectangle {
     signal clicked
 
     property real rowHeight: 56
-    property real outerRadius: 20
+    property real outerRadius: Theme.radius
     // Android: 4dp on 72dp rows, so about 3 on these 56px rows
     readonly property real innerRadius: 3
     // Not readonly, so the corner changes can animate
@@ -93,7 +93,7 @@ Rectangle {
         y: (root.rowHeight - height) / 2
         width: 36
         height: 36
-        radius: 18
+        radius: Theme.radius
         color: root.selected ? Theme.primary : Theme.primary_container
 
         Behavior on color {

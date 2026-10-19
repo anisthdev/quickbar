@@ -16,7 +16,7 @@ Rectangle {
     property real accessoryRotation: 0
 
     height: 98
-    radius: 20
+    radius: Theme.radius
     color: Theme.surface_container_high
 
     Row {

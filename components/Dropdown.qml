@@ -29,7 +29,7 @@ PopupWindow {
     // style menus, tighter where a compact menu suits better
     property real sidePadding: 20
     property real endPadding: 18
-    property real cornerRadius: 28
+    property real cornerRadius: Theme.cardRadius
 
     // Room around the panel for its shadow, and below it for the overshoot
     readonly property real shadowPad: 32

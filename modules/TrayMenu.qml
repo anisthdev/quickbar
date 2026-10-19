@@ -44,7 +44,7 @@ Dropdown {
     // Compact, like a context menu, unlike the quick settings style menus
     sidePadding: 6
     endPadding: 6
-    cornerRadius: 16
+    cornerRadius: 12
     smoothResize: true
 
     onOpenChanged: if (open)
@@ -114,7 +114,7 @@ Dropdown {
 
             width: parent.width
             height: 28
-            radius: 14
+            radius: 8
             color: root.current && backMouse.containsMouse ? Theme.surface_container_highest : "transparent"
 
             Behavior on color {
@@ -181,7 +181,7 @@ Dropdown {
 
                     visible: !entry.modelData.isSeparator
                     rowHeight: 36
-                    outerRadius: 12
+                    outerRadius: 8
                     image: entry.modelData.icon
                     text: entry.modelData.text
                     first: root.startsGroup(entry.index)

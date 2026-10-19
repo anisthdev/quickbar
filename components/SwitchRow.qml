@@ -15,7 +15,7 @@ Rectangle {
 
     width: parent?.width ?? 0
     height: 56
-    radius: 20
+    radius: Theme.radius
     color: Theme.surface_container_high
 
     MouseArea {

@@ -18,6 +18,8 @@ StatusItem {
     // Bluetooth audio
     icon: (bluetooth ? "volume_bt" : "volume") + (muted ? "_mute" : "")
     iconSize: 20
+    active: !muted
+    open: menu.open
     text: Math.round(volume * 100)
 
     onClicked: event => {

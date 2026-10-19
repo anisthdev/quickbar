@@ -19,6 +19,8 @@ StatusItem {
             return `wifi_${Math.min(3, Math.floor(network.signalStrength * 4))}`;
         return wired ? "ethernet" : "wifi_off";
     }
+    active: network !== null || wired !== null
+    open: menu.open
     iconSize: network ? 13 : wired ? 24 : 17
     text: network ? network.name : wired ? "Ethernet" : "Disconnected"
 
