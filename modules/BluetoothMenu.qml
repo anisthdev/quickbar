@@ -32,10 +32,11 @@ Dropdown {
         return "bt_generic";
     }
 
-    menuWidth: 300
+    menuWidth: 340
+    title: "Bluetooth"
 
     SwitchRow {
-        text: "Bluetooth"
+        text: "Use Bluetooth"
         checked: root.powered
         shown: root.open
         onToggled: {
@@ -49,7 +50,7 @@ Dropdown {
 
         anchors.verticalCenter: undefined
         leftPadding: 12
-        topPadding: 8
+        topPadding: 12
         bottomPadding: 4
         visible: root.powered
         text: "Connected devices"

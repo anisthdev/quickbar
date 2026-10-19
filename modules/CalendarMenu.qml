@@ -46,7 +46,8 @@ Dropdown {
         monthAnim.restart();
     }
 
-    menuWidth: 316
+    // 284 of content: the day grid's width
+    menuWidth: 324
 
     onOpenChanged: if (open)
         month = new Date(today.getFullYear(), today.getMonth(), 1)

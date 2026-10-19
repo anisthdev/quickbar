@@ -59,10 +59,11 @@ Dropdown {
             network.connect();
     }
 
-    menuWidth: 320
+    menuWidth: 340
+    title: "Wi-Fi"
 
     SwitchRow {
-        text: "Wi-Fi"
+        text: "Use Wi-Fi"
         checked: root.wifiOn
         shown: root.open
         onToggled: Networking.wifiEnabled = !root.wifiOn
@@ -73,7 +74,7 @@ Dropdown {
 
         anchors.verticalCenter: undefined
         leftPadding: 12
-        topPadding: 8
+        topPadding: 12
         bottomPadding: 4
         visible: root.wifiOn
         text: root.networks.length > 0 ? "Available networks" : "Searching for networks…"

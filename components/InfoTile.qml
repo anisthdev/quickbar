@@ -1,7 +1,7 @@
 import QtQuick
 import ".."
 
-// A weather detail tile, as in Pixel Weather: an icon and title, a large
+// A detail tile, as in Pixel Weather: an icon and title, a large
 // value with an optional unit, and a caption. An optional accessory icon
 // (e.g. a wind direction arrow) sits in the top-right corner.
 Rectangle {

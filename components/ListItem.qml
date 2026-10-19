@@ -33,7 +33,7 @@ Rectangle {
     signal clicked
 
     property real rowHeight: 56
-    readonly property real outerRadius: 20
+    property real outerRadius: 20
     // Android: 4dp on 72dp rows, so about 3 on these 56px rows
     readonly property real innerRadius: 3
     // Not readonly, so the corner changes can animate

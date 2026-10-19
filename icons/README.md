@@ -67,3 +67,6 @@ themselves are Google's weather icons from waybar-weather
 Media controls are Material Symbols Rounded (filled): `media_play_arrow`,
 `media_pause`, `media_skip_previous`, `media_skip_next`, `media_shuffle`,
 `media_repeat`, `media_repeat_one`, `media_music_note`.
+
+Battery card power modes are Material Symbols Rounded (filled):
+`power_energy_savings_leaf`, `power_balance`, `power_speed`.

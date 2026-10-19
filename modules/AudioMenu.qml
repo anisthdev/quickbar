@@ -25,7 +25,8 @@ Dropdown {
         return "device_speaker";
     }
 
-    menuWidth: 280
+    menuWidth: 340
+    title: "Sound"
 
     Slider {
         id: slider
@@ -58,7 +59,7 @@ Dropdown {
 
         anchors.verticalCenter: undefined
         leftPadding: 12
-        topPadding: 6
+        topPadding: 12
         bottomPadding: 6
         text: "Sound output"
         color: Theme.on_surface_variant

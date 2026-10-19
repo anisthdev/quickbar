@@ -24,7 +24,7 @@ Dropdown {
     readonly property real weekLow: Math.min(...days.map(d => d.low))
     readonly property real weekHigh: Math.max(...days.map(d => d.high))
 
-    readonly property real tileWidth: (menuWidth - 32 - 2 * 6) / 3
+    readonly property real tileWidth: (menuWidth - 2 * sidePadding - 2 * 6) / 3
 
     function temp(value) {
         return value === null || value === undefined ? "–" : `${Math.round(value)}${deg}`;
@@ -369,7 +369,7 @@ Dropdown {
         columns: 3
         spacing: 6
 
-        WeatherTile {
+        InfoTile {
             width: root.tileWidth
             icon: "wx_humidity_percentage"
             title: "Humidity"
@@ -377,7 +377,7 @@ Dropdown {
             caption: (root.current?.humidity ?? 0) > 70 ? "Humid" : (root.current?.humidity ?? 0) < 30 ? "Dry" : "Comfortable"
         }
 
-        WeatherTile {
+        InfoTile {
             width: root.tileWidth
             icon: "wx_air"
             title: "Wind"
@@ -389,7 +389,7 @@ Dropdown {
             accessoryRotation: (root.current?.wind_direction ?? 0) + 180
         }
 
-        WeatherTile {
+        InfoTile {
             width: root.tileWidth
             icon: "wx_sunny"
             title: "UV index"
@@ -397,7 +397,7 @@ Dropdown {
             caption: `${root.uvLevel(root.current?.uv_index ?? 0)} · max ${Math.round(root.days[0]?.uv_index_max ?? 0)}`
         }
 
-        WeatherTile {
+        InfoTile {
             width: root.tileWidth
             icon: "wx_aq"
             title: "Air quality"
@@ -405,7 +405,7 @@ Dropdown {
             caption: root.current?.aqi != null ? root.aqiLevel(root.current.aqi) : "Unavailable"
         }
 
-        WeatherTile {
+        InfoTile {
             readonly property date sunrise: root.localDate(root.data?.today.sunrise ?? "")
             readonly property date sunset: root.localDate(root.data?.today.sunset ?? "")
             // Whichever comes next today; after sunset, today's sunrise is
@@ -420,7 +420,7 @@ Dropdown {
             caption: `${sunriseNext ? "Sunset" : "Sunrise"} ${Qt.formatDateTime(sunriseNext ? sunset : sunrise, "h:mm AP")}`
         }
 
-        WeatherTile {
+        InfoTile {
             width: root.tileWidth
             icon: "wx_compress"
             title: "Pressure"

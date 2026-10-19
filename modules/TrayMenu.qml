@@ -40,7 +40,11 @@ Dropdown {
         pageAnim.restart();
     }
 
-    menuWidth: 260
+    menuWidth: 240
+    // Compact, like a context menu, unlike the quick settings style menus
+    sidePadding: 6
+    endPadding: 6
+    cornerRadius: 16
     smoothResize: true
 
     onOpenChanged: if (open)
@@ -102,15 +106,15 @@ Dropdown {
         id: page
 
         width: parent.width
-        spacing: 4
+        spacing: 2
 
         // Top level: the app's name. In a submenu: a back row named after it.
         Rectangle {
             id: heading
 
             width: parent.width
-            height: 34
-            radius: 17
+            height: 28
+            radius: 14
             color: root.current && backMouse.containsMouse ? Theme.surface_container_highest : "transparent"
 
             Behavior on color {
@@ -168,7 +172,7 @@ Dropdown {
                 readonly property bool checkable: modelData.buttonType !== QsMenuButtonType.None
 
                 width: parent.width
-                height: modelData.isSeparator ? 6 : row.height
+                height: modelData.isSeparator ? 4 : row.height
                 // Dimmed here, not on the row, whose opacity MenuReveal animates
                 opacity: modelData.enabled ? 1 : 0.38
 
@@ -176,7 +180,8 @@ Dropdown {
                     id: row
 
                     visible: !entry.modelData.isSeparator
-                    rowHeight: 48
+                    rowHeight: 36
+                    outerRadius: 12
                     image: entry.modelData.icon
                     text: entry.modelData.text
                     first: root.startsGroup(entry.index)

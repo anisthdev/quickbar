@@ -21,12 +21,20 @@ PopupWindow {
     required property Item owner
     property bool open: false
     property real menuWidth: 300
+    // A large title over the content, as Android's quick settings dialogs have
+    property string title
     default property alias content: column.data
+
+    // Room around the content; roomy by default, as for the quick settings
+    // style menus, tighter where a compact menu suits better
+    property real sidePadding: 20
+    property real endPadding: 18
+    property real cornerRadius: 28
 
     // Room around the panel for its shadow, and below it for the overshoot
     readonly property real shadowPad: 32
     readonly property real topPad: 8
-    readonly property real fullHeight: column.implicitHeight + 2 * column.anchors.topMargin
+    readonly property real fullHeight: column.implicitHeight + 2 * endPadding
 
     // 0 = folded away, 1 = open; overshoots past 1 while springing open
     property real reveal: 0
@@ -166,7 +174,7 @@ PopupWindow {
         y: root.topPad
         width: root.menuWidth
         height: root.contentHeight * root.reveal
-        radius: Math.min(24, height / 2)
+        radius: Math.min(root.cornerRadius, height / 2)
         color: Theme.surface_container
         clip: true
         transformOrigin: Item.Top
@@ -184,10 +192,28 @@ PopupWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            anchors.topMargin: 12
+            anchors.leftMargin: root.sidePadding
+            anchors.rightMargin: root.sidePadding
+            anchors.topMargin: root.endPadding
             spacing: 4
+
+            Label {
+                id: titleLabel
+
+                anchors.verticalCenter: undefined
+                visible: root.title !== ""
+                leftPadding: 8
+                bottomPadding: 10
+                text: root.title
+                color: Theme.on_surface
+                font.pixelSize: 24
+                font.weight: Font.Normal
+
+                MenuReveal {
+                    target: titleLabel
+                    shown: root.open
+                }
+            }
         }
     }
 }
