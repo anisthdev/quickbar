@@ -53,6 +53,13 @@ Pill {
         }
     }
 
+    // A fetch that hangs would block every later refresh, so cut it off
+    Timer {
+        interval: 30 * 1000
+        running: proc.running
+        onTriggered: proc.signal(15)
+    }
+
     Timer {
         interval: 10 * 60 * 1000
         running: true

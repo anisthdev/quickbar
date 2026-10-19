@@ -11,6 +11,8 @@ Singleton {
     id: root
 
     readonly property string fontFamily: "SF Pro Display"
+    // Same as the terminal; for figures that shouldn't shift as they change
+    readonly property string monoFamily: "SF Mono"
     readonly property int fontSize: 14
     readonly property int barHeight: 38
     readonly property int radius: 10

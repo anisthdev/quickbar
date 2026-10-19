@@ -63,7 +63,7 @@ Dropdown {
         return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(degrees / 45) % 8];
     }
 
-    menuWidth: 420
+    menuWidth: 360
 
     // Loading
     Label {
@@ -77,31 +77,20 @@ Dropdown {
     }
 
     // Hero
-    // Now and the next 24 hours, in one block: the hero on top, the hourly
-    // strip below a hairline, one gradient running through both
-    Rectangle {
+    // Now and the next 24 hours, straight on the menu's surface: the hero on
+    // top, the hourly strip below a hairline
+    Item {
         id: now
 
         visible: root.current !== null
         width: parent.width
         height: heroArea.height + 1 + hourly.height
-        radius: 24
-        gradient: Gradient {
-            GradientStop {
-                position: 0
-                color: Theme.primary_container
-            }
-            GradientStop {
-                position: 0.75
-                color: Theme.surface_container_high
-            }
-        }
 
         Item {
             id: heroArea
 
             width: parent.width
-            height: 150
+            height: 124
 
             Column {
                 anchors.left: parent.left
@@ -115,12 +104,12 @@ Dropdown {
                     Icon {
                         name: "wx_location_on"
                         size: 14
-                        color: Theme.on_primary_container
+                        color: Theme.on_surface_variant
                     }
 
                     Label {
                         text: root.data?.location || "Your location"
-                        color: Theme.on_primary_container
+                        color: Theme.on_surface_variant
                         font.pixelSize: 13
                     }
                 }
@@ -129,7 +118,7 @@ Dropdown {
                     anchors.verticalCenter: undefined
                     text: root.temp(root.current?.temperature)
                     color: Theme.on_surface
-                    font.pixelSize: 58
+                    font.pixelSize: 46
                     font.weight: Font.Normal
                 }
 
@@ -153,7 +142,7 @@ Dropdown {
                 anchors.rightMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
                 source: root.current ? root.icon(root.current.icon) : ""
-                sourceSize: Qt.size(104, 104)
+                sourceSize: Qt.size(80, 80)
             }
 
             MenuReveal {
@@ -177,7 +166,7 @@ Dropdown {
             x: 8
             y: heroArea.height + 1
             width: parent.width - 16
-            height: 108
+            height: 96
             orientation: ListView.Horizontal
             clip: true
             boundsBehavior: Flickable.StopAtBounds
@@ -189,7 +178,7 @@ Dropdown {
                 required property var modelData
                 required property int index
 
-                width: 54
+                width: 48
                 spacing: 4
                 topPadding: 4
 
@@ -204,7 +193,7 @@ Dropdown {
                 Image {
                     anchors.horizontalCenter: parent.horizontalCenter
                     source: root.icon(hour.modelData.icon)
-                    sourceSize: Qt.size(34, 34)
+                    sourceSize: Qt.size(30, 30)
                 }
 
                 Label {
