@@ -30,6 +30,7 @@ PanelWindow {
         Glance {}
         Workspaces {}
         PhoneLive {}
+        Mpd {}
         Submap {}
     }
 

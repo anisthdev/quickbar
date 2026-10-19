@@ -63,3 +63,7 @@ Weather uses for its detail tiles: `wx_air`, `wx_aq`, `wx_compress`,
 `wx_thermostat`, `wx_water_drop`, `wx_wb_twilight`. The condition icons
 themselves are Google's weather icons from waybar-weather
 (`~/.config/waybar/weather/.icons/dark`).
+
+Media controls are Material Symbols Rounded (filled): `media_play_arrow`,
+`media_pause`, `media_skip_previous`, `media_skip_next`, `media_shuffle`,
+`media_repeat`, `media_repeat_one`, `media_music_note`.
