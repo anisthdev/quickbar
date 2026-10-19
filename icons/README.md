@@ -56,3 +56,10 @@ Tray overflow, converted with `--bold 0.6`:
 | File | AOSP source |
 |---|---|
 | chevron | core/res/res/drawable/ic_chevron_start.xml |
+
+Weather card detail icons are Material Symbols Rounded (filled), as Pixel
+Weather uses for its detail tiles: `wx_air`, `wx_aq`, `wx_compress`,
+`wx_humidity_percentage`, `wx_location_on`, `wx_navigation`, `wx_sunny`,
+`wx_thermostat`, `wx_water_drop`, `wx_wb_twilight`. The condition icons
+themselves are Google's weather icons from waybar-weather
+(`~/.config/waybar/weather/.icons/dark`).

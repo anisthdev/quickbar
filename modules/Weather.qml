@@ -1,64 +1,55 @@
 import Quickshell
 import Quickshell.Io
 import QtQuick
+import ".."
 import "../components"
 
-// Reuses the waybar-weather binary and its Google-style icons; only the
-// rendering is new.
+// The weather half of the clock pill (see Glance): just the condition icon,
+// with the temperature in its tooltip. Also the data behind the weather
+// card. Everything comes from waybar-weather's --forecast mode, which shares
+// its location lookup and icon mapping with waybar; only the rendering is
+// new.
 Pill {
     id: root
 
     readonly property string weatherDir: Quickshell.env("HOME") + "/.config/waybar/weather"
+    readonly property string iconDir: weatherDir + "/.icons/dark"
 
-    // waybar-weather condition class -> icon file, per time of day
-    readonly property var icons: ({
-            "clear": ["sunny", "clear_night"],
-            "mostly_clear": ["mostly_sunny", "mostly_clear_night"],
-            "partly_cloudy": ["partly_cloudy", "partly_cloudy_night"],
-            "cloudy": ["cloudy", "cloudy"],
-            "fog": ["cloudy", "cloudy"],
-            "drizzle": ["drizzle", "drizzle"],
-            "light_rain": ["drizzle", "drizzle"],
-            "rain": ["heavy_rain", "heavy_rain"],
-            "heavy_rain": ["heavy_rain", "heavy_rain"],
-            "showers": ["heavy_rain", "heavy_rain"],
-            "scattered_showers": ["heavy_rain", "heavy_rain"],
-            "sleet_hail": ["sleet_hail", "sleet_hail"],
-            "mixed_rain_hail_sleet": ["wintry_mix", "wintry_mix"],
-            "light_snow": ["flurries", "flurries"],
-            "snow": ["flurries", "flurries"],
-            "showers_snow": ["flurries", "flurries"],
-            "scattered_snow_showers": ["flurries", "flurries"],
-            "heavy_snow": ["heavy_snow", "heavy_snow"],
-            "thunderstorms": ["strong_thunderstorms", "strong_thunderstorms"],
-            "strong_thunderstorms": ["strong_thunderstorms", "strong_thunderstorms"]
-        })
+    // The whole --forecast document, null until the first fetch lands
+    property var data: null
+    property double fetchedAt: 0
 
-    property string temp: ""
-    property string icon: ""
+    function refresh() {
+        if (!proc.running)
+            proc.running = true;
+    }
 
-    padding: 10
-    visible: temp !== ""
-
-    function parse(raw) {
-        let data;
-        try {
-            data = JSON.parse(raw);
-        } catch (e) {
-            return;
-        }
-        temp = data.text ?? "";
-        const classes = Array.isArray(data.class) ? data.class : [];
-        const night = classes.includes("weather-night");
-        const cond = classes.map(c => c.replace(/^weather-/, "")).find(c => icons[c] !== undefined);
-        icon = cond ? `${weatherDir}/.icons/dark/${icons[cond][night ? 1 : 0]}.svg` : "";
+    padding: 8
+    implicitHeight: Theme.barHeight - 10
+    anchors.verticalCenter: parent?.verticalCenter
+    color: hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+    visible: data !== null
+    clickable: true
+    onClicked: {
+        // Stale after 10 minutes; the card fills in once the refresh lands
+        if (Date.now() - fetchedAt > 10 * 60 * 1000)
+            refresh();
+        card.toggle();
     }
 
     Process {
         id: proc
-        command: [root.weatherDir + "/waybar-weather"]
+
+        command: [root.weatherDir + "/waybar-weather", "--forecast"]
         stdout: StdioCollector {
-            onStreamFinished: root.parse(text)
+            onStreamFinished: {
+                try {
+                    root.data = JSON.parse(text);
+                    root.fetchedAt = Date.now();
+                } catch (e) {
+                    // Keep the last good data
+                }
+            }
         }
     }
 
@@ -67,17 +58,37 @@ Pill {
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: proc.running = true
+        onTriggered: root.refresh()
     }
 
     Image {
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.icon !== ""
-        source: root.icon ? "file://" + root.icon : ""
-        sourceSize: Qt.size(25, 25)
+        source: root.data ? `file://${root.iconDir}/${root.data.current.icon}` : ""
+        sourceSize: Qt.size(20, 20)
     }
 
-    Label {
-        text: root.temp
+    Tooltip {
+        owner: root
+        shown: root.hovered && !card.open
+        text: root.data ? `${Math.round(root.data.current.temperature)}° · ${root.data.current.label}` : ""
+        description: root.data?.location ?? ""
+    }
+
+    WeatherCard {
+        id: card
+
+        owner: root
+        data: root.data
+        iconDir: root.iconDir
+        updatedAt: root.fetchedAt
+    }
+
+    // `qs -p <dir> ipc call weather toggle`, e.g. from a Hyprland keybind
+    IpcHandler {
+        target: "weather"
+
+        function toggle(): void {
+            card.toggle();
+        }
     }
 }

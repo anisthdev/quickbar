@@ -27,9 +27,8 @@ PanelWindow {
         spacing: Theme.gap
 
         Launcher {}
-        Clock {}
+        Glance {}
         Workspaces {}
-        Weather {}
         Submap {}
     }
 
