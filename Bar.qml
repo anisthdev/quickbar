@@ -42,9 +42,7 @@ PanelWindow {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.gap
 
-        Tray {
-            bar: bar
-        }
+        Tray {}
         Status {}
     }
 }

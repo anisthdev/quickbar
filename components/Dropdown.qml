@@ -31,6 +31,20 @@ PopupWindow {
     // 0 = folded away, 1 = open; overshoots past 1 while springing open
     property real reveal: 0
 
+    // Ease between content heights while open (e.g. switching pages)
+    // rather than jumping. Off where the content animates its own height.
+    property bool smoothResize: false
+    property real contentHeight: fullHeight
+
+    Behavior on contentHeight {
+        enabled: root.smoothResize && root.open && !openAnim.running && !closeAnim.running
+        NumberAnimation {
+            duration: 250
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: Theme.emphasizedDecel
+        }
+    }
+
     // A click on the owner while open first clears the focus grab (closing
     // the menu) and then reaches the owner, which would reopen it. The owner
     // checks this to make that click close the menu instead.
@@ -67,7 +81,8 @@ PopupWindow {
     anchor.edges: Edges.Top | Edges.Left
     anchor.gravity: Edges.Bottom | Edges.Right
     implicitWidth: menuWidth + 2 * shadowPad
-    implicitHeight: topPad + fullHeight * 1.15 + shadowPad
+    // Tall enough for the content before and after a resize
+    implicitHeight: topPad + Math.max(fullHeight, contentHeight) * 1.15 + shadowPad
     color: "transparent"
     // Stay mapped until the closing animation finishes
     visible: open || closeAnim.running
@@ -150,7 +165,7 @@ PopupWindow {
         x: root.shadowPad
         y: root.topPad
         width: root.menuWidth
-        height: root.fullHeight * root.reveal
+        height: root.contentHeight * root.reveal
         radius: Math.min(24, height / 2)
         color: Theme.surface_container
         clip: true

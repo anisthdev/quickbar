@@ -1,3 +1,4 @@
+import Quickshell.Widgets
 import QtQuick
 import ".."
 
@@ -10,7 +11,11 @@ import ".."
 Rectangle {
     id: root
 
+    // Leading icon: `icon` names one of ours, drawn in a tinted badge;
+    // `image` is any image (an app's own icon) shown as is. Neither gives a
+    // text-only row.
     property string icon
+    property string image
     property string text
     property string subtitle
     property real iconSize: 20
@@ -27,7 +32,7 @@ Rectangle {
 
     signal clicked
 
-    readonly property real rowHeight: 56
+    property real rowHeight: 56
     readonly property real outerRadius: 20
     // Android: 4dp on 72dp rows, so about 3 on these 56px rows
     readonly property real innerRadius: 3
@@ -83,6 +88,7 @@ Rectangle {
     Rectangle {
         id: badge
 
+        visible: root.icon !== ""
         x: 10
         y: (root.rowHeight - height) / 2
         width: 36
@@ -104,9 +110,19 @@ Rectangle {
         }
     }
 
+    IconImage {
+        id: image
+
+        x: 18
+        y: (root.rowHeight - height) / 2
+        visible: root.image !== ""
+        source: root.image
+        implicitSize: 20
+    }
+
     Column {
-        anchors.left: badge.right
-        anchors.leftMargin: 12
+        anchors.left: badge.visible ? badge.right : image.visible ? image.right : parent.left
+        anchors.leftMargin: badge.visible || image.visible ? 12 : 18
         anchors.right: trailingRow.left
         anchors.rightMargin: 12
         y: (root.rowHeight - height) / 2

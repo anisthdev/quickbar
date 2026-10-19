@@ -10,6 +10,9 @@ Rectangle {
     property real padding: 12
     property alias spacing: row.spacing
     property bool clickable: false
+    // Off when the content animates its own size, so the pill tracks it
+    // frame by frame instead of trailing behind it
+    property bool animateWidth: true
     readonly property alias hovered: mouse.containsMouse
 
     signal clicked(var event)
@@ -23,6 +26,7 @@ Rectangle {
     clip: true
 
     Behavior on implicitWidth {
+        enabled: root.animateWidth
         NumberAnimation {
             duration: Theme.animNormal
             easing.type: Easing.OutCubic

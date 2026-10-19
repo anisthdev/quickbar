@@ -3,14 +3,16 @@ import QtQuick
 import ".."
 
 // Material 3 plain tooltip below a bar item, in the dark surface colours
-// the menus use rather than M3's inverted ones. Appears after a short hover
-// delay, and leaves as soon as `shown` turns off.
+// the menus use rather than M3's inverted ones. An optional `description`
+// adds a second, quieter line. Appears after a short hover delay, and
+// leaves as soon as `shown` turns off.
 PopupWindow {
     id: root
 
     required property Item owner
     property bool shown: false
     property string text
+    property string description
 
     // Hover has to settle for this long before the tooltip appears
     property int delay: 500
@@ -30,8 +32,8 @@ PopupWindow {
     anchor.rect.y: owner.height + 6
     anchor.edges: Edges.Top
     anchor.gravity: Edges.Bottom
-    implicitWidth: Math.ceil(label.implicitWidth) + 24
-    implicitHeight: 28
+    implicitWidth: Math.ceil(lines.implicitWidth) + 24
+    implicitHeight: Math.ceil(lines.implicitHeight) + 12
     color: "transparent"
     visible: active || bubble.scale > 0
 
@@ -60,14 +62,29 @@ PopupWindow {
             }
         }
 
-        Label {
-            id: label
+        Column {
+            id: lines
 
             anchors.centerIn: parent
-            text: root.text
-            color: Theme.on_surface
-            font.pixelSize: 12
-            font.weight: Font.DemiBold
+            spacing: 1
+
+            Label {
+                anchors.verticalCenter: undefined
+                text: root.text
+                color: Theme.on_surface
+                font.pixelSize: 12
+                font.weight: Font.DemiBold
+            }
+
+            Label {
+                anchors.verticalCenter: undefined
+                visible: text !== ""
+                // Some apps send rich-text markup here
+                text: root.description.replace(/<[^>]*>/g, "").trim()
+                color: Theme.on_surface_variant
+                font.pixelSize: 12
+                font.weight: Font.Medium
+            }
         }
     }
 }

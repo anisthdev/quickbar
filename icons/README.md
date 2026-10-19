@@ -50,3 +50,9 @@ Wi-Fi menu:
 | File | AOSP source |
 |---|---|
 | lock | packages/SystemUI/res/drawable/qs_ic_wifi_lock.xml |
+
+Tray overflow, converted with `--bold 0.6`:
+
+| File | AOSP source |
+|---|---|
+| chevron | core/res/res/drawable/ic_chevron_start.xml |
