@@ -41,21 +41,21 @@ Item {
         id: enter
 
         PauseAnimation {
-            duration: 60 + root.index * 35
+            duration: 20 + root.index * 20
         }
         ParallelAnimation {
             NumberAnimation {
                 target: root.target
                 property: "opacity"
                 to: 1
-                duration: 200
+                duration: 150
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: slide
                 property: "y"
                 to: 0
-                duration: 400
+                duration: 250
                 easing.type: Easing.BezierSpline
                 easing.bezierCurve: Theme.emphasizedDecel
             }

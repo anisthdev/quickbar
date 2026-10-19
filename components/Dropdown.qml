@@ -6,9 +6,15 @@ import ".."
 
 // A Material 3 style menu that drops down from a bar item. The container
 // springs open from the top with a little overshoot while its entries
-// fade in one after another (see MenuReveal); closing is quicker and
-// accelerates away. Closes on a click anywhere else or on Escape.
-// Content goes in as children and sets the height; `menuWidth` the width.
+// fade in one after another (see MenuReveal); closing folds it back up,
+// quicker and accelerating away. Closes on a click anywhere else or on
+// Escape. Content goes in as children and sets the height; `menuWidth`
+// the width.
+//
+// The container's shape animates but its opacity never does: Hyprland
+// blurs a pixel fully or not at all, so a fading panel would leave a
+// blurred empty box behind until it crossed the blur threshold. A solid
+// panel changing size takes its blur along with it.
 PopupWindow {
     id: root
 
@@ -22,7 +28,7 @@ PopupWindow {
     readonly property real topPad: 8
     readonly property real fullHeight: column.implicitHeight + 2 * column.anchors.topMargin
 
-    // 0 = folded, 1 = open; overshoots past 1 while springing open
+    // 0 = folded away, 1 = open; overshoots past 1 while springing open
     property real reveal: 0
 
     // A click on the owner while open first clears the focus grab (closing
@@ -80,25 +86,18 @@ PopupWindow {
             target: root
             property: "reveal"
             to: 1
-            duration: 500
+            duration: 320
             easing.type: Easing.OutBack
-            easing.overshoot: 1.3
+            easing.overshoot: 0.8
         }
         NumberAnimation {
             target: panel
             property: "scale"
             from: 0.92
             to: 1
-            duration: 400
+            duration: 250
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Theme.emphasizedDecel
-        }
-        // Effects: a quick fade, no bounce
-        NumberAnimation {
-            target: panel
-            property: "opacity"
-            to: 1
-            duration: 120
         }
     }
 
@@ -108,8 +107,8 @@ PopupWindow {
         NumberAnimation {
             target: root
             property: "reveal"
-            to: 0.4
-            duration: 200
+            to: 0
+            duration: 150
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Theme.emphasizedAccel
         }
@@ -117,16 +116,9 @@ PopupWindow {
             target: panel
             property: "scale"
             to: 0.96
-            duration: 200
+            duration: 150
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Theme.emphasizedAccel
-        }
-        NumberAnimation {
-            target: panel
-            property: "opacity"
-            to: 0
-            duration: 200
-            easing.type: Easing.InCubic
         }
     }
 
@@ -148,7 +140,6 @@ PopupWindow {
         // Under Hyprland's popups_ignorealpha (0.2) everywhere, or the
         // darker part of the shadow gets blurred into a grainy strip
         color: Qt.rgba(0, 0, 0, 0.19)
-        opacity: panel.opacity
         scale: panel.scale
         transformOrigin: Item.Top
     }
@@ -159,11 +150,10 @@ PopupWindow {
         x: root.shadowPad
         y: root.topPad
         width: root.menuWidth
-        height: root.fullHeight * (0.4 + 0.6 * root.reveal)
-        radius: 24
+        height: root.fullHeight * root.reveal
+        radius: Math.min(24, height / 2)
         color: Theme.surface_container
         clip: true
-        opacity: 0
         transformOrigin: Item.Top
         focus: root.open
         Keys.onEscapePressed: root.open = false

@@ -33,7 +33,7 @@ PopupWindow {
     implicitWidth: Math.ceil(label.implicitWidth) + 24
     implicitHeight: 28
     color: "transparent"
-    visible: active || bubble.opacity > 0
+    visible: active || bubble.scale > 0
 
     Timer {
         id: delayTimer
@@ -47,20 +47,16 @@ PopupWindow {
         anchors.fill: parent
         radius: 8
         color: Theme.surface_container_high
-        opacity: root.active ? 1 : 0
-        scale: root.active ? 1 : 0.9
+        // Grows and shrinks rather than fading, so Hyprland's blur follows
+        // its shape instead of lingering (see Dropdown)
+        scale: root.active ? 1 : 0
         transformOrigin: Item.Top
 
-        Behavior on opacity {
-            NumberAnimation {
-                duration: root.active ? Theme.animFast : 100
-            }
-        }
         Behavior on scale {
             NumberAnimation {
-                duration: Theme.animFast
+                duration: root.active ? 180 : 120
                 easing.type: Easing.BezierSpline
-                easing.bezierCurve: Theme.emphasizedDecel
+                easing.bezierCurve: root.active ? Theme.emphasizedDecel : Theme.emphasizedAccel
             }
         }
 
