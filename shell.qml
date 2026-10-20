@@ -2,16 +2,31 @@
 //@ pragma IconTheme Papirus-Dark
 
 import Quickshell
+import Quickshell.Io
 import QtQuick
 import "modules"
 
 ShellRoot {
+    id: root
+
+    // Super+Shift+Space hides the bar (and its room) and brings it back
+    property bool barShown: true
+
+    IpcHandler {
+        target: "bar"
+
+        function toggle(): void {
+            root.barShown = !root.barShown;
+        }
+    }
+
     Variants {
         model: Quickshell.screens
 
         Bar {
             required property var modelData
             screen: modelData
+            visible: root.barShown
             apps: appLauncher
         }
     }
@@ -35,4 +50,6 @@ ShellRoot {
     }
 
     PowerMenu {}
+
+    Capture {}
 }
