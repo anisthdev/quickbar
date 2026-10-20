@@ -7,7 +7,8 @@ import "../components"
 
 // Search Jackett for movies, anime, Hindi films or ebooks (whichever the
 // caller opened it for, named in the title), then download the pick with
-// Transmission or stream it with peerflix. The Jackett side is
+// Transmission or stream it with peerflix. Opened for "play", it plays a
+// pasted URL or magnet link instead, starting from a link on the clipboard. The Jackett side is
 // jackett-search's --json, --add and --stream, shared with the rofi menus
 // of the old setup; this is the window.
 //
@@ -44,6 +45,12 @@ Scope {
             label: "Books",
             script: "ebook-search",
             noun: "ebooks"
+        },
+        // Not a search: play what's pasted, as play-video does
+        {
+            id: "play",
+            label: "Play",
+            play: true
         }
     ]
     property int kind: 0
@@ -63,10 +70,27 @@ Scope {
         if (i >= 0 && i !== kind) {
             kind = i;
             reset();
+            field.text = "";
+        }
+        // A link already copied is likely what's to be played. Read with
+        // wl-paste: Qt can't read the clipboard before the window has focus.
+        if (current.play) {
+            field.text = "";
+            clipboard.running = true;
         }
         open = true;
         field.forceActiveFocus();
         field.selectAll();
+    }
+
+    // A magnet link streams through peerflix, anything else goes to mpv
+    // (which hands web pages to yt-dlp)
+    function play() {
+        const url = field.text.trim();
+        if (url === "")
+            return;
+        Quickshell.execDetached(url.startsWith("magnet:") ? ["peerflix", "--mpv", "--", url] : ["mpv", "--", url]);
+        hide();
     }
 
     function hide() {
@@ -134,6 +158,21 @@ Scope {
             unit++;
         }
         return unit === 0 ? `${value} B` : `${value.toFixed(1)} ${units[unit]}`;
+    }
+
+    Process {
+        id: clipboard
+
+        command: ["wl-paste", "--no-newline", "--type", "text"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const copied = text.trim();
+                if (root.current.play && field.text === "" && /^(https?:\/\/|magnet:)\S+$/.test(copied)) {
+                    field.text = copied;
+                    field.selectAll();
+                }
+            }
+        }
     }
 
     // One search, its own process so a newer one can simply replace it
@@ -316,7 +355,7 @@ Scope {
                                 if (root.results.length === 0)
                                     return `No ${root.current.noun} found`;
                             }
-                            return `Search ${root.current.noun}`;
+                            return root.current.play ? "Play" : `Search ${root.current.noun}`;
                         }
                         width: Math.min(implicitWidth, parent.width - 2)
                         elide: Text.ElideRight
@@ -353,7 +392,7 @@ Scope {
                     Icon {
                         anchors.left: parent.left
                         anchors.leftMargin: 14
-                        name: "search"
+                        name: root.current.play ? "media_play_arrow" : "search"
                         size: 20
                         color: Theme.on_surface_variant
                     }
@@ -382,8 +421,10 @@ Scope {
                                 break;
                             case Qt.Key_Return:
                             case Qt.Key_Enter:
+                                if (root.current.play)
+                                    root.play();
                                 // A new query searches; the same one acts on the pick
-                                if (text.trim() !== root.searched || root.results.length === 0)
+                                else if (text.trim() !== root.searched || root.results.length === 0)
                                     root.search();
                                 else
                                     root.act(list.currentIndex, ctrl);
@@ -409,7 +450,7 @@ Scope {
                     Label {
                         anchors.left: field.left
                         visible: field.text === ""
-                        text: "Search…"
+                        text: root.current.play ? "Paste a URL or magnet link…" : "Search…"
                         color: Theme.on_surface_variant
                         font.pixelSize: 16
                         font.weight: Font.Normal
@@ -617,7 +658,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call search open movies` (or anime, hindi, books)
+    // `qs -p <dir> ipc call search open movies` (or anime, hindi, books, play)
     IpcHandler {
         target: "search"
 

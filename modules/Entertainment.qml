@@ -3,8 +3,8 @@ import Quickshell.Io
 import QtQuick
 import "../components"
 
-// The entertainment menu: the Jackett searches open quickbar's own search
-// window; Play URL and RetroArch still run their rofi menus for now. Hindi
+// The entertainment menu: Play URL and the Jackett searches open quickbar's
+// own search window; RetroArch still runs its rofi menu for now. Hindi
 // films aren't listed: `ipc call search open hindi` opens that search.
 Scope {
     id: root
@@ -21,7 +21,7 @@ Scope {
             {
                 label: "Play URL",
                 icon: "mpv",
-                script: "play-video"
+                search: "play"
             },
             {
                 label: "Movies/TV",
