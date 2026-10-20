@@ -117,8 +117,10 @@ Scope {
         const r = results[index];
         if (!r)
             return;
-        Quickshell.execDetached([`${menus}/${current.script}`, stream ? "--stream" : "--add", r.magnet_uri, r.title]);
-        // Have the bar's downloads show it as soon as Transmission has it
+        // Quietly: the bar's downloads ring is the confirmation (a failure
+        // still notifies)
+        Quickshell.execDetached(["env", "JACKETT_QUIET=1", `${menus}/${current.script}`, stream ? "--stream" : "--add", r.magnet_uri, r.title]);
+        // Have it show there as soon as Transmission has it
         if (!stream)
             Transmission.expect();
         hide();
