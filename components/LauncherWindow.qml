@@ -21,8 +21,8 @@ import ".."
 //
 // entries: [{ label, icon }, …] plus whatever the owner needs; icon is a
 // theme icon name or a path, and `subtitle`, `trailing` (a short state,
-// e.g. "On"), `keys` (keycaps, e.g. ["Super", "Q"]), `checked` (a check
-// mark) and `accent` (a row standing apart in the tertiary colour, as a
+// e.g. "On"), `keys` (keycaps, e.g. ["Super", "Q"]), `trailingIcon` (one
+// of icons/, e.g. a pin), `checked` (a check mark) and `accent` (a row standing apart in the tertiary colour, as a
 // page's on/off switch) are optional. Long lists scroll
 // after `maxRows` rows, and with `bigCurrent` the current row grows to show
 // its picture large (box art, covers).
@@ -67,6 +67,17 @@ Scope {
     property bool fieldAtBottom: false
     // Off for a moment by replay(), so the rows reveal again
     property bool revealed: true
+
+    // The modifiers held for the last pick (none for a click), e.g. Shift
+    // for an alternative action
+    property int pickModifiers: 0
+    // The entry the pick is on, for keys acting on it (extraKeys)
+    readonly property var currentEntry: shown[list.currentIndex] ?? null
+
+    // Move the pick, e.g. after the owner reordered the entries
+    function select(index) {
+        list.currentIndex = Math.max(0, Math.min(list.count - 1, index));
+    }
 
     signal activated(var entry)
     signal back
@@ -274,6 +285,7 @@ Scope {
                     case Qt.Key_Return:
                     case Qt.Key_Enter:
                     case Qt.Key_L:
+                        root.pickModifiers = event.modifiers;
                         root.run(list.currentIndex);
                         break;
                     case Qt.Key_Slash:
@@ -413,6 +425,7 @@ Scope {
                                 break;
                             case Qt.Key_Return:
                             case Qt.Key_Enter:
+                                root.pickModifiers = event.modifiers;
                                 root.run(list.currentIndex);
                                 break;
                             case Qt.Key_Down:
@@ -461,7 +474,7 @@ Scope {
 
                     visible: count > 0
                     width: parent.width
-                    height: rows * rowHeight + Math.max(0, rows - 1) * spacing + (root.bigCurrent && count > 0 ? bigRowHeight - rowHeight : 0)
+                    height: rows * rowHeight + Math.max(0, rows - 1) * spacing + (currentItem?.big ? bigRowHeight - rowHeight : 0)
                     spacing: 2
                     clip: true
                     interactive: rows < count
@@ -474,6 +487,17 @@ Scope {
                     highlightRangeMode: ListView.ApplyRange
                     preferredHighlightBegin: 0
                     preferredHighlightEnd: height
+                    // Jumps (gg, G, Ctrl+d/u) bring their row into view at
+                    // once: the range alone lags a move behind across rows
+                    // not built yet
+                    property int lastIndex: 0
+                    onCurrentIndexChanged: {
+                        if (Math.abs(currentIndex - lastIndex) > 1) {
+                            const index = currentIndex;
+                            Qt.callLater(() => list.positionViewAtIndex(index, ListView.Contain));
+                        }
+                        lastIndex = currentIndex;
+                    }
                     // The pick's fill slides from row to row: it sits above
                     // the rows' backgrounds (drawn on a layer of their own,
                     // below) and under their icons and text
@@ -497,7 +521,8 @@ Scope {
                         required property var modelData
                         required property int index
                         readonly property bool isCurrent: ListView.isCurrentItem
-                        readonly property bool big: root.bigCurrent && isCurrent
+                        // An entry can opt out (`big: false`), e.g. a text row among pictures
+                        readonly property bool big: root.bigCurrent && isCurrent && (modelData.big ?? true)
                         // A row starts at its size, and opening jumps to the first
                         // one; only moving the pick animates
                         property bool settled: false
@@ -543,7 +568,10 @@ Scope {
                         drawBackground: false
                         shown: root.open && root.revealed
                         revealIndex: Math.min(index, 8)
-                        onClicked: root.run(index)
+                        onClicked: {
+                            root.pickModifiers = 0;
+                            root.run(index);
+                        }
                         onHoveredChanged: if (hovered)
                             list.currentIndex = index
 
@@ -581,6 +609,13 @@ Scope {
                                     }
                                 }
                             }
+                        }
+
+                        Icon {
+                            visible: name !== ""
+                            name: item.modelData.trailingIcon ?? ""
+                            size: 18
+                            color: Theme.on_surface_variant
                         }
 
                         Icon {

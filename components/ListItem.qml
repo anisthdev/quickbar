@@ -1,4 +1,3 @@
-import Quickshell.Widgets
 import QtQuick
 import ".."
 
@@ -126,14 +125,23 @@ Rectangle {
         }
     }
 
-    IconImage {
+    // Decoded once, off the UI thread, at a fixed size and scaled from
+    // there: following imageSize would decode again on every frame of a
+    // row growing (a full-size screenshot each time)
+    Image {
         id: image
 
         x: 18
         y: (root.rowHeight - height) / 2
+        width: root.imageSize
+        height: root.imageSize
         visible: root.image !== ""
         source: root.image
-        implicitSize: root.imageSize
+        sourceSize.width: 192
+        sourceSize.height: 192
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        mipmap: true
     }
 
     Column {

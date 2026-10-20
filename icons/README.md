@@ -84,6 +84,6 @@ Media controls are Material Symbols Rounded (filled): `media_play_arrow`,
 Battery card power modes are Material Symbols Rounded (filled):
 `power_energy_savings_leaf`, `power_balance`, `power_speed`.
 
-The control panel's sliders, `mic` and `mic_off`, and quick note's
-`edit` are Material Symbols Rounded. (The power, screenshot and screen
+The control panel's sliders, `mic` and `mic_off`, quick note's `edit`
+and the clipboard's pin, `keep` (filled), are Material Symbols Rounded. (The power, screenshot and screen
 record menus use Papirus icons, as the control panel does.)

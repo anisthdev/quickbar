@@ -65,6 +65,8 @@ ShellRoot {
 
     Keybindings {}
 
+    Clipboard {}
+
     ControlPanel {
         power: power
         capture: capture
