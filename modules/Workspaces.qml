@@ -188,8 +188,8 @@ Pill {
             width: root.indicatorRight - root.indicatorLeft
             height: root.slotHeight
             radius: root.cornerRadius
-            // Same as the active status buttons on the right of the bar
-            color: Theme.primary_container
+            // The quiet tonal fill the menus use for their pick
+            color: Theme.secondary_container
         }
 
         // Numbers for occupied workspaces, dots for empty ones; drawn over
@@ -204,7 +204,7 @@ Pill {
                 readonly property bool active: index === root.activeIndex
                 readonly property bool here: root.occupied(index)
                 readonly property bool urgent: HyprState.workspaces[index + 1]?.urgent ?? false
-                readonly property color ink: active ? Theme.on_primary_container : urgent ? Theme.on_error : here ? Theme.on_surface : Theme.outline
+                readonly property color ink: active ? Theme.on_secondary_container : urgent ? Theme.on_error : here ? Theme.on_surface : Theme.outline
 
                 x: index * root.slotWidth
                 width: root.slotWidth

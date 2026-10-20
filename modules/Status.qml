@@ -2,22 +2,28 @@ import QtQuick
 import ".."
 import "../components"
 
-// Network, Bluetooth and audio as a connected button group, with battery
-// beside it on the plain background.
+// Network, Bluetooth and audio in one pill, as icons unless their details
+// are on (middle-click any of them), with battery beside it.
 Pill {
     padding: 5
     spacing: 6
 
-    Row {
+    Rectangle {
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 3
+        // The buttons animate their own widths; this follows them
+        implicitWidth: buttons.implicitWidth
+        implicitHeight: Theme.barHeight - 10
+        radius: 8
+        color: Theme.surface_container_highest
 
-        Network {
-            first: true
-        }
-        BluetoothStatus {}
-        Audio {
-            last: true
+        Row {
+            id: buttons
+
+            anchors.verticalCenter: parent.verticalCenter
+
+            Network {}
+            BluetoothStatus {}
+            Audio {}
         }
     }
 

@@ -2,6 +2,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Networking
 import QtQuick
+import ".."
 import "../components"
 
 // Wi-Fi or Ethernet status from NetworkManager. Click for the Wi-Fi menu,
@@ -22,9 +23,13 @@ StatusItem {
     active: network !== null || wired !== null
     open: menu.open
     iconSize: network ? 13 : wired ? 24 : 17
-    text: network ? network.name : wired ? "Ethernet" : "Disconnected"
+    readonly property string label: network ? network.name : wired ? "Ethernet" : "Disconnected"
+
+    text: Settings.showStatusDetails ? label : ""
 
     onClicked: event => {
+        if (event.button === Qt.MiddleButton)
+            return;
         if (event.button === Qt.RightButton)
             Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/menus/control-panel-script", "--page", "wifi"]);
         else
@@ -34,6 +39,12 @@ StatusItem {
     WifiMenu {
         id: menu
         owner: root
+    }
+
+    Tooltip {
+        owner: root
+        shown: root.hovered && !menu.open && !Settings.showStatusDetails
+        text: root.label
     }
 
     // `qs -p <dir> ipc call wifi toggle`, e.g. from a Hyprland keybind

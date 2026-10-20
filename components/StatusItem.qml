@@ -1,10 +1,10 @@
 import QtQuick
 import ".."
 
-// One button of the status group, in the Material 3 Expressive connected
-// button group style: the group's outer corners match the bar's, the seams
-// between buttons are tight. A button fills with the primary container while
-// its thing is on, and rounds all its corners while its menu is open.
+// One button of the status pill: an icon, and its details (the network's
+// name…) while they're shown. Dimmed while its thing is off; a state layer
+// on hover, kept while its menu is open. Middle-clicking any of them shows
+// or hides the details of all.
 Pill {
     id: root
 
@@ -15,41 +15,19 @@ Pill {
     property bool active: true
     // Its menu is showing
     property bool open: false
-    // Ends of the group, which get the round outer corners
-    property bool first: false
-    property bool last: false
 
-    readonly property real round: 8
-    readonly property real seam: 4
-    property real leftCorners: open || first ? round : seam
-    property real rightCorners: open || last ? round : seam
+    readonly property color foreground: active ? Theme.on_surface : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.45)
 
-    readonly property color foreground: active ? Theme.on_primary_container : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.6)
-    readonly property color base: active ? Theme.primary_container : Theme.surface_container_high
-
-    padding: 14
+    padding: label.visible ? 12 : 9
     implicitHeight: Theme.barHeight - 10
-    topLeftRadius: leftCorners
-    bottomLeftRadius: leftCorners
-    topRightRadius: rightCorners
-    bottomRightRadius: rightCorners
-    // Hover and press state layers, tinted with the content colour
-    color: Qt.tint(base, Qt.rgba(foreground.r, foreground.g, foreground.b, pressed ? 0.12 : hovered || open ? 0.08 : 0))
+    radius: 8
+    color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, pressed ? 0.12 : hovered || open ? 0.08 : 0)
     clickable: true
-    // Tinted into color above instead, so it can stay on with the menu open
+    // Drawn as the colour above instead, so it can stay on with the menu open
     stateLayer: false
-
-    Behavior on leftCorners {
-        NumberAnimation {
-            duration: Theme.animNormal
-            easing.type: Easing.OutBack
-        }
-    }
-    Behavior on rightCorners {
-        NumberAnimation {
-            duration: Theme.animNormal
-            easing.type: Easing.OutBack
-        }
+    onClicked: event => {
+        if (event.button === Qt.MiddleButton)
+            Settings.showStatusDetails = !Settings.showStatusDetails;
     }
 
     Icon {

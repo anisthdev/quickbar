@@ -15,12 +15,14 @@ StatusItem {
 
     // Android has no "off" Bluetooth icon; off is the plain icon, unfilled
     icon: connected > 0 ? "bluetooth_connected" : "bluetooth"
-    iconSize: 20
+    iconSize: 18
     active: powered
     open: menu.open
-    text: powered ? String(connected) : ""
+    text: Settings.showStatusDetails && powered ? String(connected) : ""
 
     onClicked: event => {
+        if (event.button === Qt.MiddleButton)
+            return;
         if (event.button === Qt.RightButton)
             Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/menus/control-panel-script", "--page", "bluetooth"]);
         else
@@ -30,6 +32,12 @@ StatusItem {
     BluetoothMenu {
         id: menu
         owner: root
+    }
+
+    Tooltip {
+        owner: root
+        shown: root.hovered && !menu.open && !Settings.showStatusDetails
+        text: !root.powered ? "Bluetooth off" : root.connected === 1 ? "1 device connected" : `${root.connected} devices connected`
     }
 
     // `qs -p <dir> ipc call bluetooth toggle`, e.g. from a Hyprland keybind

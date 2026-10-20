@@ -9,12 +9,12 @@ Status icons are Android 16's own, from AOSP (Apache 2.0), branch
 | wifi_0 … wifi_3 | packages/SettingsLib/res/drawable/ic_wifi_N.xml | |
 | wifi_off | packages/SystemUI/res/drawable/ic_signal_wifi_off.xml | |
 | ethernet | packages/SystemUI/res/drawable/stat_sys_ethernet_fully.xml | |
-| bluetooth | core/res/res/drawable/ic_qs_bluetooth.xml | `--bold 0.6` |
-| bluetooth_connected | packages/SystemUI/res/drawable/ic_bluetooth_connected.xml | `--bold 0.6` |
-| volume | packages/SystemUI/res/drawable/ic_volume_media.xml | `--bold 0.6` |
-| volume_mute | packages/SystemUI/res/drawable/ic_volume_media_mute.xml | `--bold 0.6` |
-| volume_bt | packages/SystemUI/res/drawable/ic_volume_media_bt.xml | `--bold 0.6` |
-| volume_bt_mute | packages/SystemUI/res/drawable/ic_volume_media_bt_mute.xml | `--bold 0.6` |
+| bluetooth | core/res/res/drawable/ic_qs_bluetooth.xml | |
+| bluetooth_connected | packages/SystemUI/res/drawable/ic_bluetooth_connected.xml | |
+| volume | packages/SystemUI/res/drawable/ic_volume_media.xml | |
+| volume_mute | packages/SystemUI/res/drawable/ic_volume_media_mute.xml | |
+| volume_bt | packages/SystemUI/res/drawable/ic_volume_media_bt.xml | |
+| volume_bt_mute | packages/SystemUI/res/drawable/ic_volume_media_bt_mute.xml | |
 
 `--bold` thickens thin icons that blur on a 1x screen.
 

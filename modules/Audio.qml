@@ -5,9 +5,9 @@ import QtQuick
 import ".."
 import "../components"
 
-// Icon, the output's name (middle-click shows or hides it, and the choice
-// is kept) and volume level: click for the output picker, scroll for
-// volume, right-click for the control panel's input page.
+// Icon, then the output's name and volume level when the status details
+// are on: click for the output picker, scroll for volume, middle-click to
+// show or hide the details, right-click for the control panel's input page.
 StatusItem {
     id: root
 
@@ -19,17 +19,19 @@ StatusItem {
     // Android's media volume icon: a music note, with a Bluetooth mark for
     // Bluetooth audio
     icon: (bluetooth ? "volume_bt" : "volume") + (muted ? "_mute" : "")
-    iconSize: 20
+    iconSize: 18
     active: !muted
     open: menu.open
     readonly property string sinkName: sink?.description || sink?.nickname || sink?.name || ""
 
-    text: Settings.showSinkName && sinkName ? `${sinkName}  ${Math.round(volume * 100)}` : Math.round(volume * 100)
+    readonly property int level: Math.round(volume * 100)
+
+    text: !Settings.showStatusDetails ? "" : sinkName ? `${sinkName}  ${level}` : String(level)
 
     onClicked: event => {
         if (event.button === Qt.MiddleButton)
-            Settings.showSinkName = !Settings.showSinkName;
-        else if (event.button === Qt.RightButton)
+            return;
+        if (event.button === Qt.RightButton)
             Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/menus/control-panel-script", "--page", "audio-inputs"]);
         else
             menu.toggle();
@@ -54,9 +56,9 @@ StatusItem {
 
     Tooltip {
         owner: root
-        // The name is already there when it's shown in the bar
-        shown: root.hovered && !menu.open && !Settings.showSinkName
-        text: root.sinkName
+        // What the details would show, when they're hidden
+        shown: root.hovered && !menu.open && !Settings.showStatusDetails
+        text: root.sinkName ? `${root.sinkName} · ${root.level}%` : `${root.level}%`
     }
 
     // `qs -p <dir> ipc call audio toggle`, e.g. from a Hyprland keybind
