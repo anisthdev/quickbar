@@ -3,6 +3,7 @@
 
 import Quickshell
 import QtQuick
+import "modules"
 
 ShellRoot {
     Variants {
@@ -13,4 +14,6 @@ ShellRoot {
             screen: modelData
         }
     }
+
+    Notifications {}
 }

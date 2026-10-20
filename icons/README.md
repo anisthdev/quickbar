@@ -19,7 +19,9 @@ Status icons are Android 16's own, from AOSP (Apache 2.0), branch
 `--bold` thickens thin icons that blur on a 1x screen.
 
 Others: `archlinux` is from Simple Icons, `keyboard_command_key` from
-Material Symbols Rounded. All icons are white; the bar tints them.
+Material Symbols Rounded, `close` (notifications) is Material Icons'
+close path with the same 0.6 stroke as the converted ones. All icons are
+white; the bar tints them.
 
 Output device icons (audio menu), all from packages/SettingsLib/res/drawable,
 converted with `--bold 0.6`:

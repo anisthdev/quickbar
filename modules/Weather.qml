@@ -44,12 +44,15 @@ Pill {
         command: [root.weatherDir + "/waybar-weather", "--forecast"]
         stdout: StdioCollector {
             onStreamFinished: {
+                // Keep the last good data through bad output and errors (a
+                // failed fetch prints an object without the forecast)
                 try {
-                    root.data = JSON.parse(text);
+                    const parsed = JSON.parse(text);
+                    if (!parsed?.current || !parsed?.today)
+                        return;
+                    root.data = parsed;
                     root.fetchedAt = Date.now();
-                } catch (e) {
-                    // Keep the last good data
-                }
+                } catch (e) {}
             }
         }
     }
