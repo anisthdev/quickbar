@@ -7,10 +7,8 @@ import ".."
 
 // Notification popups in the bottom right corner, newest at the bottom.
 //
-// Only one program can be the notification server. While quickbar runs it
-// takes over from mako: mako is stopped first, and a watcher started here
-// brings it back once quickbar exits, so switching bars switches the
-// notifications along with them.
+// quickbar is the notification server (mako's D-Bus activation is
+// overridden, so it can't take the name first).
 Scope {
     id: root
 
@@ -65,30 +63,10 @@ Scope {
         delete objects[key];
     }
 
-    // Stop mako, wait for it to let go of the name, and leave a watcher
-    // behind (one at most, through the lock) to restart it after quickbar
-    Process {
-        running: true
-        command: ["sh", "-c", `
-            qs=$PPID
-            pkill -x mako
-            for _ in $(seq 50); do
-                busctl --user status org.freedesktop.Notifications 2>/dev/null | grep -q '^Comm=mako$' || break
-                sleep 0.1
-            done
-            setsid -f sh -c '
-                exec 9>"$XDG_RUNTIME_DIR/quickbar-mako.lock"
-                flock -n 9 || exit 0
-                tail --pid="$1" -f /dev/null
-                exec 9>&-
-                pgrep -x mako >/dev/null || exec uwsm app -- mako
-            ' sh "$qs" >/dev/null 2>&1 </dev/null
-        `]
-        onExited: server.active = true
-    }
-
     LazyLoader {
         id: server
+
+        active: true
 
         NotificationServer {
             keepOnReload: true

@@ -61,10 +61,12 @@ Item {
     property string replyStatus
     property string replyPlaceholder
     // Notifications sharing this hint replace each other (volume and
-    // brightness levels from sysaud). They show as a thick pill instead,
-    // as Android's volume and brightness sliders look.
+    // brightness levels from sysaud, the screenshot countdown). Those with
+    // a value (the levels) show as a thick pill instead, as Android's
+    // volume and brightness sliders look.
     property string syncKey
-    readonly property bool level: syncKey !== ""
+    property bool hasValue: false
+    readonly property bool level: syncKey !== "" && hasValue
     readonly property string levelIcon: {
         if (/bright/i.test(syncKey))
             return shownProgress < 34 ? "brightness_low" : shownProgress < 67 ? "brightness_medium" : "brightness_full";
@@ -111,6 +113,7 @@ Item {
         const entry = (n.desktopEntry && DesktopEntries.byId(n.desktopEntry)) || DesktopEntries.heuristicLookup(n.appName);
         appName = entry?.name || n.appName || "Notification";
         syncKey = n.hints?.["x-canonical-private-synchronous"] ?? "";
+        hasValue = n.hints?.value !== undefined;
         // notify-send -i arrives as a themed "image"; that's the app's icon,
         // not a picture
         const themed = (n.image ?? "").startsWith("image://icon/");
