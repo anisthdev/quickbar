@@ -71,7 +71,7 @@ Dropdown {
                 Label {
                     anchors.verticalCenter: undefined
                     width: parent.width
-                    text: row.torrent.name
+                    text: row.torrent.name ?? ""
                     color: Theme.on_surface
                     font.pixelSize: 14
                     elide: Text.ElideMiddle
@@ -79,7 +79,7 @@ Dropdown {
 
                 LinearProgress {
                     width: parent.width
-                    progress: row.torrent.percentDone
+                    progress: row.torrent.percentDone ?? 0
                     indeterminate: row.torrent.status === 1 || row.torrent.status === 2
                     wavy: row.downloading
                     thickness: 4

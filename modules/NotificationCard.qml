@@ -592,14 +592,14 @@ Item {
         }
 
         // Volume or brightness: a thick level bar like the battery card's,
-        // shorter than a card and kept to the right edge, with the icon
+        // as wide as a card, with the icon
         // riding in the filled part and the number on the track
         LevelBar {
             id: levelBar
 
             visible: root.level
-            anchors.right: parent.right
-            width: 320
+            // As wide as the other cards
+            width: parent.width
             height: 52
             value: Math.max(0, root.progress) / 100
             minFill: height
