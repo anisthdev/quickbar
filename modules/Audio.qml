@@ -2,10 +2,12 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Pipewire
 import QtQuick
+import ".."
 import "../components"
 
-// Icon and volume level: click for the output picker, scroll for volume,
-// right-click for the control panel's input page.
+// Icon, the output's name (middle-click shows or hides it, and the choice
+// is kept) and volume level: click for the output picker, scroll for
+// volume, right-click for the control panel's input page.
 StatusItem {
     id: root
 
@@ -20,10 +22,14 @@ StatusItem {
     iconSize: 20
     active: !muted
     open: menu.open
-    text: Math.round(volume * 100)
+    readonly property string sinkName: sink?.description || sink?.nickname || sink?.name || ""
+
+    text: Settings.showSinkName && sinkName ? `${sinkName}  ${Math.round(volume * 100)}` : Math.round(volume * 100)
 
     onClicked: event => {
-        if (event.button === Qt.RightButton)
+        if (event.button === Qt.MiddleButton)
+            Settings.showSinkName = !Settings.showSinkName;
+        else if (event.button === Qt.RightButton)
             Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/menus/control-panel-script", "--page", "audio-inputs"]);
         else
             menu.toggle();
@@ -48,8 +54,9 @@ StatusItem {
 
     Tooltip {
         owner: root
-        shown: root.hovered && !menu.open
-        text: root.sink?.description || root.sink?.nickname || root.sink?.name || ""
+        // The name is already there when it's shown in the bar
+        shown: root.hovered && !menu.open && !Settings.showSinkName
+        text: root.sinkName
     }
 
     // `qs -p <dir> ipc call audio toggle`, e.g. from a Hyprland keybind
