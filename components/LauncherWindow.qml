@@ -3,10 +3,16 @@ import Quickshell.Wayland
 import QtQuick
 import ".."
 
-// A menu in the rofi menus' place and shape: bottom centre, a title, a
-// filter field and a grouped list (ListItem rows) of entries with app icons. Typing filters, Up/Down
-// pick, Enter or a click runs the pick (`activated`), Esc or a click outside
-// closes. It springs open upwards and folds back down, by shape only.
+// A menu in the rofi menus' place and shape: bottom centre, a title and a
+// grouped list (ListItem rows) of entries with app icons. It springs open
+// upwards and folds back down, by shape only.
+//
+// Keyboard first, with vim keys: j/k (or the arrows, Tab) move, gg/G go to
+// the ends, Ctrl+d/Ctrl+u by half a page, Enter or l runs the pick
+// (`activated`), q or Esc closes. The filter field is there but not
+// focused: / (or a click) focuses it, typing filters, Enter runs, Esc goes
+// back to the list keeping the filter, and Esc there clears it. The mouse
+// works too.
 //
 // entries: [{ label, icon }, …] plus whatever the owner needs; icon is a
 // theme icon name or a path. Long lists scroll after `maxRows` rows, and
@@ -22,6 +28,8 @@ Scope {
     property int maxRows: 0
     property bool bigCurrent: false
     property bool open: false
+    // Typing into the filter
+    property bool filtering: false
 
     signal activated(var entry)
 
@@ -32,9 +40,20 @@ Scope {
 
     function show() {
         field.text = "";
+        filtering = false;
         list.currentIndex = 0;
         open = true;
+        keys.forceActiveFocus();
+    }
+
+    function startFilter() {
+        filtering = true;
         field.forceActiveFocus();
+    }
+
+    function stopFilter() {
+        filtering = false;
+        keys.forceActiveFocus();
     }
 
     function hide() {
@@ -143,6 +162,54 @@ Scope {
                 anchors.fill: parent
             }
 
+            ListKeys {
+                id: listKeys
+
+                list: list
+                halfPage: Math.max(1, Math.floor((root.maxRows || list.count) / 2))
+            }
+
+            // The list's keys, while not typing a filter
+            Item {
+                id: keys
+
+                Keys.onPressed: event => {
+                    if (listKeys.handle(event)) {
+                        event.accepted = true;
+                        return;
+                    }
+                    switch (event.key) {
+                    case Qt.Key_Tab:
+                        listKeys.move(1);
+                        break;
+                    case Qt.Key_Backtab:
+                        listKeys.move(-1);
+                        break;
+                    case Qt.Key_Return:
+                    case Qt.Key_Enter:
+                    case Qt.Key_L:
+                        root.run(list.currentIndex);
+                        break;
+                    case Qt.Key_Slash:
+                        root.startFilter();
+                        break;
+                    case Qt.Key_Escape:
+                        // A filter left on goes first
+                        if (field.text !== "")
+                            field.text = "";
+                        else
+                            root.hide();
+                        break;
+                    case Qt.Key_Q:
+                        root.hide();
+                        break;
+                    default:
+                        return;
+                    }
+                    event.accepted = true;
+                }
+            }
+
             Column {
                 id: content
 
@@ -163,11 +230,21 @@ Scope {
                     font.weight: Font.Bold
                 }
 
+                // The filter, outlined while typing into it
                 Rectangle {
                     width: parent.width
                     height: 46
                     radius: Theme.radius
                     color: Theme.surface_container_highest
+                    border.width: root.filtering ? 2 : 0
+                    border.color: Theme.primary
+
+                    // A click focuses it, as / does
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.IBeamCursor
+                        onClicked: root.startFilter()
+                    }
 
                     Icon {
                         anchors.left: parent.left
@@ -194,10 +271,12 @@ Scope {
                         clip: true
                         onTextChanged: list.currentIndex = 0
 
+                        // Typing filters; these move and leave
                         Keys.onPressed: event => {
+                            const ctrl = event.modifiers & Qt.ControlModifier;
                             switch (event.key) {
                             case Qt.Key_Escape:
-                                root.hide();
+                                root.stopFilter();
                                 break;
                             case Qt.Key_Return:
                             case Qt.Key_Enter:
@@ -205,11 +284,23 @@ Scope {
                                 break;
                             case Qt.Key_Down:
                             case Qt.Key_Tab:
-                                list.incrementCurrentIndex();
+                                listKeys.move(1);
                                 break;
                             case Qt.Key_Up:
                             case Qt.Key_Backtab:
-                                list.decrementCurrentIndex();
+                                listKeys.move(-1);
+                                break;
+                            case Qt.Key_J:
+                            case Qt.Key_N:
+                                if (!ctrl)
+                                    return;
+                                listKeys.move(1);
+                                break;
+                            case Qt.Key_K:
+                            case Qt.Key_P:
+                                if (!ctrl)
+                                    return;
+                                listKeys.move(-1);
                                 break;
                             default:
                                 return;

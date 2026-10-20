@@ -13,9 +13,13 @@ import "../components"
 // of the old setup; this is the window.
 //
 // It opens at the bottom centre at the rofi menu's size, widening and
-// growing only once there are results. The search field keeps the keyboard
-// throughout, as rofi does: type and Enter to search, Up/Down to pick, Enter
-// to download, Ctrl+Enter (or Ctrl+R) to stream, Esc to close. A search runs for as long as Jackett takes (often half a
+// growing only once there are results.
+//
+// Keyboard first, vim style. It opens typing (the field outlined): Enter
+// searches. Results take the keys from the field: j/k (or the arrows),
+// gg/G, Ctrl+d/Ctrl+u move, Enter or l downloads, s streams, / or i go back
+// to the query, q or Esc closes. Esc while typing goes back to the results,
+// or closes when there are none. A search runs for as long as Jackett takes (often half a
 // minute), with a travelling wave below the field meanwhile.
 Scope {
     id: root
@@ -57,6 +61,8 @@ Scope {
     readonly property var current: kinds[kind]
 
     property bool open: false
+    // Typing the query, rather than moving through the results
+    property bool typing: true
     // "idle", "searching", "done" or "error"
     property string phase: "idle"
     property string message
@@ -79,8 +85,22 @@ Scope {
             clipboard.running = true;
         }
         open = true;
-        field.forceActiveFocus();
-        field.selectAll();
+        type(true);
+    }
+
+    // Into the field (all of the query selected, to type over it, or the
+    // cursor at its end, to change it), or back to the results
+    function type(on, selectAll) {
+        typing = on || results.length === 0 || !!current.play;
+        if (typing) {
+            field.forceActiveFocus();
+            if (selectAll !== false)
+                field.selectAll();
+            else
+                field.cursorPosition = field.text.length;
+        } else {
+            keys.forceActiveFocus();
+        }
     }
 
     // A magnet link streams through peerflix, anything else goes to mpv
@@ -128,12 +148,16 @@ Scope {
         }
         try {
             results = JSON.parse(out);
-            phase = "done";
-            list.currentIndex = 0;
         } catch (e) {
             phase = "error";
             message = "Couldn't read the results";
+            return;
         }
+        phase = "done";
+        list.currentIndex = 0;
+        // The keys move to the results
+        if (open)
+            type(false);
     }
 
     // Download, or stream, the result at index
@@ -326,6 +350,47 @@ Scope {
                 anchors.fill: parent
             }
 
+            ListKeys {
+                id: listKeys
+
+                list: list
+            }
+
+            // The results' keys, while not typing
+            Item {
+                id: keys
+
+                Keys.onPressed: event => {
+                    if (listKeys.handle(event)) {
+                        event.accepted = true;
+                        return;
+                    }
+                    switch (event.key) {
+                    case Qt.Key_Return:
+                    case Qt.Key_Enter:
+                    case Qt.Key_L:
+                        root.act(list.currentIndex, false);
+                        break;
+                    case Qt.Key_S:
+                        root.act(list.currentIndex, true);
+                        break;
+                    case Qt.Key_Slash:
+                        root.type(true);
+                        break;
+                    case Qt.Key_I:
+                        root.type(true, false);
+                        break;
+                    case Qt.Key_Q:
+                    case Qt.Key_Escape:
+                        root.hide();
+                        break;
+                    default:
+                        return;
+                    }
+                    event.accepted = true;
+                }
+            }
+
             Column {
                 id: content
 
@@ -367,10 +432,12 @@ Scope {
 
                 }
 
-                // Search field
+                // Search field, outlined while typing
                 Rectangle {
                     width: parent.width
                     height: 46
+                    border.width: root.typing && root.open ? 2 : 0
+                    border.color: Theme.primary
 
                     // The wave while Jackett searches, in the room below the
                     // field rather than making more
@@ -413,32 +480,33 @@ Scope {
                         font.weight: Font.Medium
                         clip: true
 
+                        // Typing; these search, play or leave
                         Keys.onPressed: event => {
                             const ctrl = event.modifiers & Qt.ControlModifier;
                             switch (event.key) {
                             case Qt.Key_Escape:
-                                root.hide();
+                                if (root.results.length > 0 && !root.current.play)
+                                    root.type(false);
+                                else
+                                    root.hide();
                                 break;
                             case Qt.Key_Return:
                             case Qt.Key_Enter:
                                 if (root.current.play)
                                     root.play();
-                                // A new query searches; the same one acts on the pick
+                                // The same query again just goes back to its results
                                 else if (text.trim() !== root.searched || root.results.length === 0)
                                     root.search();
                                 else
-                                    root.act(list.currentIndex, ctrl);
-                                break;
-                            case Qt.Key_R:
-                                if (!ctrl)
-                                    return;
-                                root.act(list.currentIndex, true);
+                                    root.type(false);
                                 break;
                             case Qt.Key_Down:
-                                list.incrementCurrentIndex();
+                                root.type(false);
                                 break;
-                            case Qt.Key_Up:
-                                list.decrementCurrentIndex();
+                            case Qt.Key_J:
+                                if (!ctrl)
+                                    return;
+                                root.type(false);
                                 break;
                             default:
                                 return;
@@ -471,8 +539,12 @@ Scope {
                     spacing: 2
                     clip: true
                     model: root.phase === "done" ? root.results : []
-                    highlightMoveDuration: 150
                     boundsBehavior: Flickable.StopAtBounds
+                    // Keep the current row in view as the keys move it
+                    highlightRangeMode: ListView.ApplyRange
+                    preferredHighlightBegin: 0
+                    preferredHighlightEnd: height
+                    highlightMoveDuration: 150
 
                     delegate: Item {
                         id: row
