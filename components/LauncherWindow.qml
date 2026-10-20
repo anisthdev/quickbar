@@ -21,8 +21,9 @@ import ".."
 //
 // entries: [{ label, icon }, …] plus whatever the owner needs; icon is a
 // theme icon name or a path, and `subtitle`, `trailing` (a short state,
-// e.g. "On"), `checked` (a check mark) and `accent` (a row standing apart
-// in the tertiary colour, as a page's on/off switch) are optional. Long lists scroll
+// e.g. "On"), `keys` (keycaps, e.g. ["Super", "Q"]), `checked` (a check
+// mark) and `accent` (a row standing apart in the tertiary colour, as a
+// page's on/off switch) are optional. Long lists scroll
 // after `maxRows` rows, and with `bigCurrent` the current row grows to show
 // its picture large (box art, covers).
 //
@@ -551,6 +552,35 @@ Scope {
                             text: item.modelData.trailing ?? ""
                             color: Theme.on_surface_variant
                             font.pixelSize: 13
+                        }
+
+                        // Keycaps
+                        Row {
+                            visible: (item.modelData.keys ?? []).length > 0
+                            spacing: 4
+
+                            Repeater {
+                                model: item.modelData.keys ?? []
+
+                                Rectangle {
+                                    required property string modelData
+
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: Math.max(26, cap.implicitWidth + 14)
+                                    height: 26
+                                    radius: 6
+                                    color: Theme.surface_container_highest
+
+                                    Label {
+                                        id: cap
+
+                                        anchors.centerIn: parent
+                                        text: parent.modelData
+                                        color: Theme.on_surface_variant
+                                        font.pixelSize: 12
+                                    }
+                                }
+                            }
                         }
 
                         Icon {

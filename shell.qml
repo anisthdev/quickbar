@@ -63,6 +63,8 @@ ShellRoot {
 
     QuickNote {}
 
+    Keybindings {}
+
     ControlPanel {
         power: power
         capture: capture
