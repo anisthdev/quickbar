@@ -61,6 +61,8 @@ ShellRoot {
         id: wallpaper
     }
 
+    QuickNote {}
+
     ControlPanel {
         power: power
         capture: capture

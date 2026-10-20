@@ -32,7 +32,8 @@ import ".."
 // in again for a new page; `header` goes between the title and the field
 // (a slider); `extraKeys` gets the keys first. Setting `prompt` turns the
 // field into a password field showing it: Enter emits `submitted`, Esc
-// `promptCancelled`.
+// `promptCancelled`; with `promptSecret` off it's plain text (a note), and
+// the rows below are only there to look at.
 Scope {
     id: root
 
@@ -57,6 +58,12 @@ Scope {
     property var extraKeys: null
     property Component header: null
     property string prompt: ""
+    property bool promptSecret: true
+    // The field's icon, from icons/
+    property string fieldIcon: "search"
+    // The field under the rows instead of over them, where it's for
+    // writing rather than filtering (quick note)
+    property bool fieldAtBottom: false
     // Off for a moment by replay(), so the rows reveal again
     property bool revealed: true
 
@@ -336,7 +343,16 @@ Scope {
 
                 // The filter, outlined while typing into it; or the prompt
                 Rectangle {
-                    width: parent.width
+                    id: fieldBox
+
+                    // Under the rows: moving it out and back in puts it
+                    // last in the column
+                    Component.onCompleted: if (root.fieldAtBottom) {
+                        parent = null;
+                        parent = content;
+                    }
+
+                    width: parent?.width ?? 0
                     height: 46
                     radius: Theme.radius
                     color: Theme.surface_container_highest
@@ -353,7 +369,7 @@ Scope {
                     Icon {
                         anchors.left: parent.left
                         anchors.leftMargin: 14
-                        name: "search"
+                        name: root.fieldIcon
                         size: 20
                         color: Theme.on_surface_variant
                     }
@@ -373,7 +389,7 @@ Scope {
                         font.pixelSize: 16
                         font.weight: Font.Medium
                         clip: true
-                        echoMode: root.prompt !== "" ? TextInput.Password : TextInput.Normal
+                        echoMode: root.prompt !== "" && root.promptSecret ? TextInput.Password : TextInput.Normal
                         onTextChanged: if (root.prompt === "")
                             list.currentIndex = 0
 
@@ -469,7 +485,8 @@ Scope {
                         radius: Theme.radius
                         color: Theme.secondary_container
                         // Fades in with its row as the menu opens
-                        opacity: list.currentItem?.opacity ?? 1
+                        // No pick while the field asks for text
+                        opacity: root.prompt !== "" ? 0 : list.currentItem?.opacity ?? 1
                     }
 
                     // The grouped list rows of the other menus
@@ -564,7 +581,7 @@ Scope {
 
                 Label {
                     anchors.verticalCenter: undefined
-                    visible: list.count === 0
+                    visible: list.count === 0 && root.prompt === ""
                     leftPadding: 4
                     text: "Nothing matches"
                     color: Theme.on_surface_variant
