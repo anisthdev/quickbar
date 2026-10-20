@@ -33,4 +33,6 @@ ShellRoot {
     AppLauncher {
         id: appLauncher
     }
+
+    PowerMenu {}
 }
