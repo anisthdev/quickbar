@@ -20,7 +20,12 @@ ShellRoot {
         id: mediaSearch
     }
 
+    Games {
+        id: games
+    }
+
     Entertainment {
         search: mediaSearch
+        games: games
     }
 }

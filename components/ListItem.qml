@@ -37,6 +37,9 @@ Rectangle {
     signal clicked
 
     property real rowHeight: 56
+    // Eases height changes (opening `extra`); off where the owner animates
+    // rowHeight itself, or the two would chase each other
+    property bool animateHeight: true
     property real outerRadius: Theme.radius
     // Android: 4dp on 72dp rows, so about 3 on these 56px rows
     readonly property real innerRadius: 3
@@ -54,6 +57,7 @@ Rectangle {
     color: selected ? Theme.primary_container : (highlighted || clickable && mouse.containsMouse) && !expanded ? Theme.surface_container_highest : Theme.surface_container_high
 
     Behavior on height {
+        enabled: root.animateHeight
         NumberAnimation {
             duration: Theme.animNormal
             easing.type: Easing.BezierSpline

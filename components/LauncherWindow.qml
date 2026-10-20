@@ -9,13 +9,18 @@ import ".."
 // closes. It springs open upwards and folds back down, by shape only.
 //
 // entries: [{ label, icon }, …] plus whatever the owner needs; icon is a
-// theme icon name or a path.
+// theme icon name or a path. Long lists scroll after `maxRows` rows, and
+// with `bigCurrent` the current row grows to show its picture large (box
+// art, covers).
 Scope {
     id: root
 
     property string title
     property string placeholder: "Filter…"
     property var entries: []
+    // Rows shown before the list scrolls; 0 shows them all
+    property int maxRows: 0
+    property bool bigCurrent: false
     property bool open: false
 
     signal activated(var entry)
@@ -227,33 +232,69 @@ Scope {
                     id: list
 
                     readonly property real rowHeight: 58
+                    readonly property real bigRowHeight: 112
+                    readonly property int rows: root.maxRows > 0 ? Math.min(count, root.maxRows) : count
 
                     visible: count > 0
                     width: parent.width
-                    height: count * rowHeight + Math.max(0, count - 1) * spacing
+                    height: rows * rowHeight + Math.max(0, rows - 1) * spacing + (root.bigCurrent && count > 0 ? bigRowHeight - rowHeight : 0)
                     spacing: 2
-                    interactive: false
+                    clip: true
+                    interactive: rows < count
+                    boundsBehavior: Flickable.StopAtBounds
                     model: root.shown
+                    // Keep the current row in view as the keys move it
+                    highlightRangeMode: ListView.ApplyRange
+                    preferredHighlightBegin: 0
+                    preferredHighlightEnd: height
+                    highlightMoveDuration: 200
 
                     // The grouped list rows of the other menus
                     delegate: ListItem {
+                        id: item
+
                         required property var modelData
                         required property int index
+                        readonly property bool big: root.bigCurrent && ListView.isCurrentItem
+                        // A row starts at its size, and opening jumps to the first
+                        // one; only moving the pick animates
+                        property bool settled: false
+
+                        Component.onCompleted: Qt.callLater(() => settled = true)
 
                         width: list.width
-                        rowHeight: list.rowHeight
+                        rowHeight: big ? list.bigRowHeight : list.rowHeight
+                        // Its own easing below moves the content with it
+                        animateHeight: false
                         image: {
                             const name = modelData.icon ?? "";
                             return name.startsWith("/") ? `file://${name}` : Quickshell.iconPath(name, true);
                         }
-                        imageSize: 32
+                        imageSize: big ? 96 : 32
+
+                        Behavior on rowHeight {
+                            enabled: item.settled && !openAnim.running
+                            NumberAnimation {
+                                duration: Theme.animNormal
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Theme.emphasizedDecel
+                            }
+                        }
+                        Behavior on imageSize {
+                            enabled: item.settled && !openAnim.running
+                            NumberAnimation {
+                                duration: Theme.animNormal
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Theme.emphasizedDecel
+                            }
+                        }
                         text: modelData.label
                         first: index === 0
                         last: index === list.count - 1
                         clickable: true
                         highlighted: ListView.isCurrentItem
                         shown: root.open
-                        revealIndex: index
+                        revealIndex: Math.min(index, 8)
                         onClicked: root.run(index)
                         onHoveredChanged: if (hovered)
                             list.currentIndex = index

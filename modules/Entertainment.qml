@@ -4,14 +4,13 @@ import QtQuick
 import "../components"
 
 // The entertainment menu: Play URL and the Jackett searches open quickbar's
-// own search window; RetroArch still runs its rofi menu for now. Hindi
+// own search window, RetroArch NES its game list. Hindi
 // films aren't listed: `ipc call search open hindi` opens that search.
 Scope {
     id: root
 
     required property var search
-
-    readonly property string menus: Quickshell.env("HOME") + "/.local/bin/menus"
+    required property var games
 
     LauncherWindow {
         id: launcher
@@ -41,15 +40,10 @@ Scope {
             {
                 label: "RetroArch NES",
                 icon: "retroarch",
-                script: "retroarch-nes"
+                games: true
             }
         ]
-        onActivated: entry => {
-            if (entry.search)
-                root.search.show(entry.search);
-            else
-                Quickshell.execDetached([`${root.menus}/${entry.script}`]);
-        }
+        onActivated: entry => entry.games ? root.games.show() : root.search.show(entry.search)
     }
 
     // `qs -p <dir> ipc call entertainment toggle`, e.g. from Super+E
