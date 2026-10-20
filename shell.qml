@@ -40,9 +40,14 @@ ShellRoot {
         id: games
     }
 
+    Reel {
+        id: reel
+    }
+
     Entertainment {
         search: mediaSearch
         games: games
+        reel: reel
     }
 
     AppLauncher {

@@ -3,20 +3,27 @@ import Quickshell.Io
 import QtQuick
 import "../components"
 
-// The entertainment menu: Play URL and the Jackett searches open quickbar's
-// own search window, RetroArch NES its game list. Hindi
+// The entertainment menu: Library opens the video library (Reel), Play URL
+// and the Jackett searches open quickbar's own search window, RetroArch NES
+// its game list. Hindi
 // films aren't listed: `ipc call search open hindi` opens that search.
 Scope {
     id: root
 
     required property var search
     required property var games
+    required property var reel
 
     LauncherWindow {
         id: launcher
 
         title: "Entertainment"
         entries: [
+            {
+                label: "Library",
+                icon: "applications-multimedia",
+                reel: true
+            },
             {
                 label: "Play URL",
                 icon: "mpv",
@@ -43,7 +50,7 @@ Scope {
                 games: true
             }
         ]
-        onActivated: entry => entry.games ? root.games.show() : root.search.show(entry.search)
+        onActivated: entry => entry.reel ? root.reel.show() : entry.games ? root.games.show() : root.search.show(entry.search)
     }
 
     // `qs -p <dir> ipc call entertainment toggle`, e.g. from Super+E

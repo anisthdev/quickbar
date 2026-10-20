@@ -95,3 +95,5 @@ Material Symbols Rounded.
 Weather icons (`weather/`, the weather card and pill) are the dark set from
 ~/Projects/waybar-weather's `icons/dark`, named as `weather --forecast`
 names them.
+
+`task_alt` (the library's Watched chip) is Material Symbols Rounded.
