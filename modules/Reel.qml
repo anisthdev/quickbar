@@ -59,8 +59,13 @@ Scope {
 
     function show() {
         open = true;
+        load();
+    }
+
+    // Progress read again, and reel rescans; library.json changes only
+    // when something did. The menu (ReelMenu) calls it too
+    function load() {
         refresh();
-        // reel rescans; library.json changes only when something did
         scan.running = true;
     }
 
