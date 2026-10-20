@@ -75,9 +75,14 @@ ShellRoot {
 
     Polkit {}
 
+    KeepAwake {
+        id: keepAwake
+    }
+
     ControlPanel {
         power: power
         capture: capture
         wallpaper: wallpaper
+        keepAwake: keepAwake
     }
 }

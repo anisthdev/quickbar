@@ -10,9 +10,10 @@ import "../components"
 // The control panel, in control-panel-script's place (Super+Q): one of the
 // rofi-shaped menus (LauncherWindow), with pages. The first lists the
 // settings with their states; Wi-Fi, Bluetooth, VPN, Sound and Microphone
-// open their page in the same menu, Handoff, Nightlight and the charge
-// limit switch in place, and Power, Screenshot, Screen record and
-// Wallpaper open their own menus, which can come back here.
+// open their page in the same menu, Handoff, Nightlight, the charge limit
+// and Keep awake switch in place, Power, Screenshot, Screen record and
+// Wallpaper open their own menus, which can come back here, and OCR and
+// Color picker close it and pick from the screen.
 //
 // Keys are the menus' (j/k, gg/G, / to filter, Enter or l to pick, q to
 // close), plus h, Backspace or Esc to go back a page. Opened straight at
@@ -25,6 +26,7 @@ Scope {
     required property var power
     required property var capture
     required property var wallpaper
+    required property var keepAwake
 
     // "" for the first page, else a page's name
     property string page: ""
@@ -148,6 +150,13 @@ Scope {
             trailing: onOff(chargeLimit < 100)
         },
         {
+            key: "keepawake",
+            label: "Keep awake",
+            icon: "caffeine",
+            subtitle: keepAwake.on ? "No dimming, locking or sleep" : "Locks and sleeps when idle",
+            trailing: onOff(keepAwake.on)
+        },
+        {
             key: "power",
             label: "Power",
             icon: "system-shutdown"
@@ -166,6 +175,18 @@ Scope {
             key: "wallpaper",
             label: "Wallpaper",
             icon: "preferences-desktop-wallpaper"
+        },
+        {
+            key: "ocr",
+            label: "OCR",
+            icon: "ocrfeeder",
+            subtitle: "Copy the text in a region"
+        },
+        {
+            key: "colorpicker",
+            label: "Color picker",
+            icon: "gcolor3",
+            subtitle: "Copy a color from the screen"
         }
     ]
 
@@ -445,6 +466,8 @@ Scope {
         if (page === "") {
             if (["wifi", "bluetooth", "vpn", "sound", "mic"].includes(key)) {
                 go(key);
+            } else if (key === "keepawake") {
+                keepAwake.toggle();
             } else if (["handoff", "nightlight", "charge"].includes(key)) {
                 switcher.command = [`${scripts}/${({
                             handoff: "toggle-handoff",
@@ -516,6 +539,11 @@ Scope {
                 root.capture.showRecord(true);
             else if (action === "wallpaper")
                 root.wallpaper.show(true);
+            // Picks from the screen, once this menu is off it
+            else if (action === "ocr")
+                Quickshell.execDetached([`${root.scripts}/ocr-region`]);
+            else if (action === "colorpicker")
+                Quickshell.execDetached(["hyprpicker", "-a"]);
         }
     }
 
