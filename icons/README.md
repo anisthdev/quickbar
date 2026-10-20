@@ -20,8 +20,19 @@ Status icons are Android 16's own, from AOSP (Apache 2.0), branch
 
 Others: `archlinux` is from Simple Icons, `keyboard_command_key` from
 Material Symbols Rounded, `close` (notifications) is Material Icons'
-close path with the same 0.6 stroke as the converted ones. All icons are
-white; the bar tints them.
+close path with the same 0.6 stroke as the converted ones, and `search`,
+`download`, `arrow_upward` and `arrow_downward` (the media search) are
+Material Symbols. All icons are white; the bar tints them.
+
+Brightness icons (volume and brightness notifications), from
+packages/SystemUI/res/drawable; these are Lottie exports, whose bare "c"
+path commands vd2svg drops:
+
+| File | AOSP source |
+|---|---|
+| brightness_low | ic_brightness_low.xml |
+| brightness_medium | ic_brightness_medium.xml |
+| brightness_full | ic_brightness_full.xml |
 
 Output device icons (audio menu), all from packages/SettingsLib/res/drawable,
 converted with `--bold 0.6`:

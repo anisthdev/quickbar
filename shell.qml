@@ -16,4 +16,5 @@ ShellRoot {
     }
 
     Notifications {}
+    MediaSearch {}
 }
