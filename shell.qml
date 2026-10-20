@@ -16,5 +16,11 @@ ShellRoot {
     }
 
     Notifications {}
-    MediaSearch {}
+    MediaSearch {
+        id: mediaSearch
+    }
+
+    Entertainment {
+        search: mediaSearch
+    }
 }

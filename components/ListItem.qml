@@ -19,9 +19,13 @@ Rectangle {
     property string text
     property string subtitle
     property real iconSize: 20
+    property real imageSize: 20
     property bool first: false
     property bool last: false
     property bool selected: false
+    // The keyboard's pick in a list you move through: drawn like hover
+    property bool highlighted: false
+    readonly property alias hovered: mouse.containsMouse
     property bool clickable: false
     property bool expanded: false
     // Entrance with the menu, see MenuReveal
@@ -47,7 +51,7 @@ Rectangle {
     topRightRadius: topCorners
     bottomLeftRadius: bottomCorners
     bottomRightRadius: bottomCorners
-    color: selected ? Theme.primary_container : clickable && mouse.containsMouse && !expanded ? Theme.surface_container_highest : Theme.surface_container_high
+    color: selected ? Theme.primary_container : (highlighted || clickable && mouse.containsMouse) && !expanded ? Theme.surface_container_highest : Theme.surface_container_high
 
     Behavior on height {
         NumberAnimation {
@@ -117,7 +121,7 @@ Rectangle {
         y: (root.rowHeight - height) / 2
         visible: root.image !== ""
         source: root.image
-        implicitSize: 20
+        implicitSize: root.imageSize
     }
 
     Column {
