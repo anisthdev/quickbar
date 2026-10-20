@@ -22,6 +22,15 @@ Scope {
     // key -> Notification, for the cards to pick up
     property var objects: ({})
     property int nextKey: 0
+    // A card has its reply field open
+    readonly property bool typing: {
+        repeater.count;
+        for (let i = 0; i < repeater.count; i++) {
+            if (repeater.itemAt(i)?.replying)
+                return true;
+        }
+        return false;
+    }
 
     function add(n) {
         if (root.hiddenApps.includes(n.appName))
@@ -87,8 +96,11 @@ Scope {
             bodyMarkupSupported: true
             actionsSupported: true
             imageSupported: true
+            // KDE's inline reply: an "inline-reply" action, answered with
+            // the NotificationReplied signal
+            inlineReplySupported: true
             // Progress, as handoff's file transfers send it
-            extraHints: ["value", "x-canonical-private-synchronous"]
+            extraHints: ["value", "x-canonical-private-synchronous", "x-kde-reply-placeholder-text"]
 
             onNotification: n => root.add(n)
         }
@@ -115,6 +127,8 @@ Scope {
         // Hyprland's blur layer rule matches on this name (mako used it too)
         WlrLayershell.namespace: "notifications"
         WlrLayershell.layer: WlrLayer.Overlay
+        // The keyboard only while a reply is being typed
+        WlrLayershell.keyboardFocus: root.typing ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         mask: Region {
             item: stack
         }

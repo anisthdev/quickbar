@@ -175,7 +175,7 @@ Dropdown {
                 color: item.selected ? Theme.on_primary_container : Theme.on_surface_variant
             }
 
-            extra: PasswordField {
+            extra: EntryField {
                 width: item.width
                 active: item.expanded
                 onSubmitted: password => root.connect(item.modelData, password)

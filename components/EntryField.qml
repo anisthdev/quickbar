@@ -1,14 +1,22 @@
 import QtQuick
 import ".."
 
-// Password entry with a Connect button, for the expanded area of a
-// ListItem. Takes keyboard focus while `active`; Enter submits.
+// A text field with a button beside it: the Wi-Fi password, a reply to a
+// notification. Takes keyboard focus while `active`; Enter or the button
+// submits, Escape cancels.
 Item {
     id: root
 
     property bool active: false
+    property string placeholder: "Password"
+    property string buttonText: "Connect"
+    // Dots instead of the text
+    property bool secret: true
+    // Room either side, e.g. to line up with a list row's content
+    property real inset: 10
 
-    signal submitted(string password)
+    signal submitted(string text)
+    signal cancelled
 
     function submit() {
         if (input.text !== "")
@@ -27,7 +35,7 @@ Item {
         id: field
 
         anchors.left: parent.left
-        anchors.leftMargin: 10
+        anchors.leftMargin: root.inset
         anchors.right: button.left
         anchors.rightMargin: 8
         anchors.top: parent.top
@@ -44,7 +52,7 @@ Item {
             anchors.leftMargin: 14
             anchors.rightMargin: 14
             verticalAlignment: TextInput.AlignVCenter
-            echoMode: TextInput.Password
+            echoMode: root.secret ? TextInput.Password : TextInput.Normal
             passwordCharacter: "•"
             color: Theme.on_surface
             selectionColor: Theme.primary
@@ -53,13 +61,17 @@ Item {
             font.pixelSize: 14
             clip: true
             onAccepted: root.submit()
+            Keys.onEscapePressed: root.cancelled()
         }
 
         Label {
             anchors.left: parent.left
             anchors.leftMargin: 14
+            anchors.right: parent.right
+            anchors.rightMargin: 14
+            elide: Text.ElideRight
             visible: input.text === ""
-            text: "Password"
+            text: root.placeholder
             color: Theme.on_surface_variant
             font.weight: Font.Medium
         }
@@ -69,7 +81,7 @@ Item {
         id: button
 
         anchors.right: parent.right
-        anchors.rightMargin: 10
+        anchors.rightMargin: root.inset
         anchors.top: parent.top
         width: buttonLabel.implicitWidth + 32
         height: 44
@@ -86,7 +98,7 @@ Item {
             id: buttonLabel
 
             anchors.centerIn: parent
-            text: "Connect"
+            text: root.buttonText
             color: input.text === "" ? Theme.on_surface_variant : Theme.on_primary
         }
 

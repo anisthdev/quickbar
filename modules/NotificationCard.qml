@@ -8,7 +8,9 @@ import "../components"
 // One heads-up notification, Android 16 style: the app's icon in a circle,
 // "App · time" over the title and text, an optional picture on the right, a
 // progress bar when the sender reports one (a negative or non-numeric value
-// meaning busy with no known end), and actions as tonal buttons.
+// meaning busy with no known end), and actions as text buttons. A sender
+// that asks for an inline reply (KDE's extension: an "inline-reply" action)
+// gets a Reply button that opens a text field in place of the buttons.
 // Clicking runs the default action; swipe it sideways, or hit ×, to
 // dismiss. It slides in from the right edge and folds away when it goes,
 // moving by shape only (see Dropdown on why nothing here fades).
@@ -54,6 +56,10 @@ Item {
     property bool critical: false
     property double arrived: Date.now()
     property bool expanded: false
+    // Typing a reply, and what became of the last one sent
+    property bool replying: false
+    property string replyStatus
+    property string replyPlaceholder
     // Notifications sharing this hint replace each other (volume and
     // brightness levels from sysaud). They show as a thick pill instead,
     // as Android's volume and brightness sliders look.
@@ -125,10 +131,22 @@ Item {
             progress = next;
             shownProgress = Math.max(0, next);
         }
-        actions = Array.from(n.actions).filter(a => a.identifier !== "default").map(a => ({
-                    id: a.identifier,
-                    text: a.text
-                }));
+        // Reply comes first; Quickshell keeps the reply action out of
+        // n.actions and hands its label over as inlineReplyPlaceholder
+        const buttons = n.hasInlineReply ? [
+            {
+                id: "inline-reply",
+                text: n.inlineReplyPlaceholder || "Reply"
+            }
+        ] : [];
+        actions = buttons.concat(Array.from(n.actions).filter(a => a.identifier !== "default").map(a => ({
+                        id: a.identifier,
+                        text: a.text
+                    })));
+        replyPlaceholder = n.hints?.["x-kde-reply-placeholder-text"] || "Reply";
+        // An update from the sender (e.g. the reply went through) replaces
+        // the "Sending…" line
+        replyStatus = "";
         critical = n.urgency === NotificationUrgency.Critical;
     }
 
@@ -142,12 +160,24 @@ Item {
     }
 
     function invoke(id) {
+        if (id === "inline-reply") {
+            replying = true;
+            return;
+        }
         const action = Array.from(n?.actions ?? []).find(a => a.identifier === id);
         if (action)
             action.invoke();
         // Non-resident notifications are done once acted on
         if (n && !n.resident)
             n.dismiss();
+    }
+
+    function sendReply(text) {
+        if (!n)
+            return;
+        n.sendInlineReply(text);
+        replying = false;
+        replyStatus = "Sending…";
     }
 
     function dismiss() {
@@ -217,7 +247,7 @@ Item {
         readonly property real asked: root.n?.expireTimeout ?? -1
 
         interval: asked > 0 ? asked : 6000
-        running: !!root.n && !root.critical && asked !== 0 && !root.hovered && !drag.active && !root.leaving
+        running: !!root.n && !root.critical && asked !== 0 && !root.hovered && !drag.active && !root.leaving && !root.replying
         onTriggered: root.n?.expire()
     }
 
@@ -479,12 +509,25 @@ Item {
                     thickness: 6
                 }
 
-                // Actions as tonal buttons
+                Label {
+                    anchors.verticalCenter: undefined
+                    visible: root.replyStatus !== ""
+                    topPadding: 4
+                    text: root.replyStatus
+                    color: Theme.primary
+                    font.pixelSize: 14
+                }
+
+                // Actions as M3 text buttons, as Android lays them out: the
+                // label in the accent colour, no container until hovered, the
+                // first label lined up with the text above. The reply field
+                // takes their place.
                 Flow {
-                    visible: root.actions.length > 0
-                    width: parent.width
-                    topPadding: 8
-                    spacing: 6
+                    visible: root.actions.length > 0 && !root.replying
+                    x: -12
+                    width: parent.width + 12
+                    topPadding: 4
+                    spacing: 4
 
                     Repeater {
                         model: root.actions
@@ -494,17 +537,24 @@ Item {
 
                             required property var modelData
 
-                            width: actionLabel.implicitWidth + 28
+                            width: actionLabel.implicitWidth + 24
                             height: 40
                             radius: Theme.radius
-                            color: Qt.tint(Theme.primary_container, Qt.rgba(Theme.on_primary_container.r, Theme.on_primary_container.g, Theme.on_primary_container.b, actionMouse.pressed ? 0.12 : actionMouse.containsMouse ? 0.08 : 0))
+                            // State layer only
+                            color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, actionMouse.pressed ? 0.12 : actionMouse.containsMouse ? 0.08 : 0)
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: Theme.animFast
+                                }
+                            }
 
                             Label {
                                 id: actionLabel
 
                                 anchors.centerIn: parent
                                 text: action.modelData.text
-                                color: Theme.on_primary_container
+                                color: Theme.primary
                                 font.pixelSize: 15
                                 font.weight: Font.DemiBold
                             }
@@ -518,6 +568,24 @@ Item {
                                 onClicked: root.invoke(action.modelData.id)
                             }
                         }
+                    }
+                }
+
+                Item {
+                    visible: root.replying
+                    width: parent.width
+                    height: 52
+
+                    EntryField {
+                        y: 8
+                        width: parent.width
+                        inset: 0
+                        active: root.replying
+                        secret: false
+                        placeholder: root.replyPlaceholder
+                        buttonText: "Send"
+                        onSubmitted: text => root.sendReply(text)
+                        onCancelled: root.replying = false
                     }
                 }
             }
