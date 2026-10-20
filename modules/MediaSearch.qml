@@ -118,6 +118,9 @@ Scope {
         if (!r)
             return;
         Quickshell.execDetached([`${menus}/${current.script}`, stream ? "--stream" : "--add", r.magnet_uri, r.title]);
+        // Have the bar's downloads show it as soon as Transmission has it
+        if (!stream)
+            Transmission.expect();
         hide();
     }
 

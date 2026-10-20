@@ -43,6 +43,7 @@ PanelWindow {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.gap
 
+        Downloads {}
         Tray {}
         Status {}
     }
