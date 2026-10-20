@@ -69,6 +69,7 @@ Dropdown {
                 color: Theme.on_surface
                 font.pixelSize: 56
                 font.weight: Font.Normal
+                roundness: Theme.titleRoundness
             }
 
             Label {

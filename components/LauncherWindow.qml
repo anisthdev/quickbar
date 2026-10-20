@@ -258,7 +258,8 @@ Scope {
                     color: Theme.primary
                     // rofi's 20 pt
                     font.pixelSize: 26
-                    font.weight: Font.Bold
+                    font.weight: Theme.titleWeight
+                    roundness: Theme.titleRoundness
                 }
 
                 // The filter, outlined while typing into it

@@ -26,6 +26,7 @@ Pill {
     Label {
         text: Qt.formatDateTime(clock.date, "HH:mm")
         font.weight: Font.Bold
+        roundness: Theme.titleRoundness
         font.features: {
             "tnum": 1
         }

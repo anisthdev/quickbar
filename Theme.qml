@@ -16,6 +16,11 @@ Singleton {
     // What a Label's default Medium renders at: a little under 500, as
     // end-4's shell sets its body text
     readonly property int bodyWeight: 450
+    // The full-screen menus' titles (Entertainment, Search movies): a
+    // little under Bold
+    readonly property int titleWeight: 620
+    // How round titles' letters are (the font's ROND axis, 0-100)
+    readonly property real titleRoundness: 100
     // Same as the terminal; for figures that shouldn't shift as they change
     readonly property string monoFamily: "SF Mono"
     readonly property int fontSize: 14

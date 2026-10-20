@@ -427,7 +427,8 @@ Scope {
                         color: root.phase === "error" ? Theme.error : Theme.primary
                         // rofi's 20 pt
                         font.pixelSize: 26
-                        font.weight: Font.Bold
+                        font.weight: Theme.titleWeight
+                        roundness: Theme.titleRoundness
                     }
 
                 }

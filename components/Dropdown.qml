@@ -226,6 +226,7 @@ PopupWindow {
                 color: Theme.on_surface
                 font.pixelSize: 24
                 font.weight: Font.Normal
+                roundness: Theme.titleRoundness
 
                 MenuReveal {
                     target: titleLabel
