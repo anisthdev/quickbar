@@ -22,11 +22,13 @@ Pill {
         precision: SystemClock.Minutes
     }
 
-    // Monospaced so the pill doesn't change width as the digits change
+    // Tabular digits, so the pill doesn't change width as they change
     Label {
         text: Qt.formatDateTime(clock.date, "HH:mm")
-        font.family: Theme.monoFamily
-        font.weight: Font.Black
+        font.weight: Font.Bold
+        font.features: {
+            "tnum": 1
+        }
     }
 
     Tooltip {

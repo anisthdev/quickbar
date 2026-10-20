@@ -10,7 +10,12 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property string fontFamily: "SF Pro Display"
+    // Google Sans Flex, Android 16's own; variable, so weights between the
+    // named ones work (bodyWeight)
+    readonly property string fontFamily: "Google Sans Flex"
+    // What a Label's default Medium renders at: a little under 500, as
+    // end-4's shell sets its body text
+    readonly property int bodyWeight: 450
     // Same as the terminal; for figures that shouldn't shift as they change
     readonly property string monoFamily: "SF Mono"
     readonly property int fontSize: 14
