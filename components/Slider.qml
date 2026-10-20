@@ -4,13 +4,18 @@ import ".."
 // Material 3 Expressive slider: a thick rounded track split by a slim
 // handle, with an icon inside the start of the track and a stop dot at the
 // end. Drag, click or scroll to change `value` (0-1); clicking the icon
-// emits iconClicked instead.
+// emits iconClicked instead. With `interactive` off it only shows a value.
 Item {
     id: root
 
     property real value: 0
     property string icon
     property bool dimmed: false
+    property bool interactive: true
+    property color activeColor: dimmed ? Theme.outline : Theme.primary
+    property color trackColor: Theme.surface_container_highest
+    // The icon's colour while it sits on the active part
+    property color activeIconColor: Theme.on_primary
 
     signal moved(real value)
     signal iconClicked
@@ -21,7 +26,6 @@ Item {
     // Shown position; follows `value`, smoothly unless being dragged
     property real shown: value
     readonly property real handleX: shown * (width - handleWidth)
-    readonly property color activeColor: dimmed ? Theme.outline : Theme.primary
 
     implicitWidth: 240
     implicitHeight: trackHeight + 12
@@ -70,7 +74,7 @@ Item {
         bottomLeftRadius: 4
         topRightRadius: Theme.radius
         bottomRightRadius: Theme.radius
-        color: Theme.surface_container_highest
+        color: root.trackColor
 
         // Stop indicator
         Rectangle {
@@ -106,6 +110,7 @@ Item {
         id: mouse
 
         anchors.fill: parent
+        enabled: root.interactive
         cursorShape: Qt.PointingHandCursor
         preventStealing: true
         onPressed: event => root.setFromX(event.x)
@@ -130,7 +135,7 @@ Item {
             anchors.centerIn: parent
             name: root.icon
             size: 20
-            color: active.width > 40 ? Theme.on_primary : Theme.on_surface
+            color: active.width > 40 ? root.activeIconColor : Theme.on_surface
 
             Behavior on color {
                 ColorAnimation {
@@ -141,6 +146,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent
+            enabled: root.interactive
             cursorShape: Qt.PointingHandCursor
             onClicked: root.iconClicked()
         }

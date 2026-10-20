@@ -65,62 +65,11 @@ Dropdown {
             }
         }
 
-        // Filled part, a small gap, then the rest of the track with a stop
-        // dot; round outer ends, tight inner edges
-        Item {
-            id: bar
-
-            readonly property real outer: Theme.radius
-            readonly property real inner: 3
-            readonly property real gap: 4
-            // Fills up to the level as the card opens
-            property real shown: root.open ? Math.max(0, Math.min(100, root.percent)) / 100 : 0
-            readonly property real fillWidth: Math.max(outer, shown * (width - gap))
-
+        // Fills up to the level as the card opens
+        LevelBar {
             width: parent.width
-            height: 40
-
-            Behavior on shown {
-                NumberAnimation {
-                    duration: 700
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: Theme.emphasizedDecel
-                }
-            }
-
-            Rectangle {
-                width: bar.fillWidth
-                height: parent.height
-                topLeftRadius: bar.outer
-                bottomLeftRadius: bar.outer
-                topRightRadius: bar.shown >= 1 ? bar.outer : bar.inner
-                bottomRightRadius: bar.shown >= 1 ? bar.outer : bar.inner
-                color: Theme.primary
-            }
-
-            Rectangle {
-                x: bar.fillWidth + bar.gap
-                width: Math.max(0, parent.width - x)
-                height: parent.height
-                visible: width > 0
-                topLeftRadius: bar.inner
-                bottomLeftRadius: bar.inner
-                topRightRadius: bar.outer
-                bottomRightRadius: bar.outer
-                color: Theme.primary_container
-
-                // Stop indicator
-                Rectangle {
-                    anchors.right: parent.right
-                    anchors.rightMargin: 14
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: parent.width > 30
-                    width: 6
-                    height: 6
-                    radius: 3
-                    color: Theme.primary
-                }
-            }
+            value: root.open ? root.percent / 100 : 0
+            duration: 700
         }
 
         Label {

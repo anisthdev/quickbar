@@ -55,10 +55,15 @@ Item {
     property double arrived: Date.now()
     property bool expanded: false
     // Notifications sharing this hint replace each other (volume and
-    // brightness levels from sysaud); they get a compact card without the
-    // app line
+    // brightness levels from sysaud). They show as a thick pill instead,
+    // as Android's volume and brightness sliders look.
     property string syncKey
     readonly property bool level: syncKey !== ""
+    readonly property string levelIcon: {
+        if (/bright/i.test(syncKey))
+            return shownProgress < 34 ? "brightness_low" : shownProgress < 67 ? "brightness_medium" : "brightness_full";
+        return shownProgress > 0 ? "volume" : "volume_mute";
+    }
 
     // 0 = folded away, 1 = fully in
     property real reveal: 0
@@ -283,9 +288,10 @@ Item {
         // At the bottom of the space it unfolds, so it rises into place
         y: root.height - height
         width: root.width
-        height: content.implicitHeight + 32
+        height: root.level ? levelBar.height : content.implicitHeight + 32
         radius: Theme.cardRadius
-        color: Theme.surface_container
+        // A level card is just its slider
+        color: root.level ? "transparent" : Theme.surface_container
 
         HoverHandler {
             id: hover
@@ -323,6 +329,8 @@ Item {
 
         Row {
             id: content
+
+            visible: !root.level
 
             x: 16
             y: 16
@@ -467,8 +475,8 @@ Item {
                     width: parent.width
                     progress: root.shownProgress / 100
                     indeterminate: root.indeterminate
-                    wavy: !root.level
-                    thickness: root.level ? 14 : 6
+                    wavy: true
+                    thickness: 6
                 }
 
                 // Actions as tonal buttons
@@ -512,6 +520,40 @@ Item {
                         }
                     }
                 }
+            }
+        }
+
+        // Volume or brightness: a thick level bar like the battery card's,
+        // shorter than a card and kept to the right edge, with the icon
+        // riding in the filled part and the number on the track
+        LevelBar {
+            id: levelBar
+
+            visible: root.level
+            anchors.right: parent.right
+            width: 320
+            height: 52
+            value: Math.max(0, root.progress) / 100
+            minFill: height
+            color: Theme.inverse_primary
+            trackColor: Theme.background
+
+            Icon {
+                anchors.left: parent.left
+                anchors.leftMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                name: root.levelIcon
+                size: 24
+                color: Theme.on_surface
+            }
+
+            RollingText {
+                anchors.right: parent.right
+                anchors.rightMargin: 32
+                text: String(Math.max(0, root.progress))
+                color: Theme.on_surface
+                fontSize: 16
+                fontWeight: Font.DemiBold
             }
         }
     }

@@ -11,12 +11,20 @@ units). Android draws these icons for 2.5-3x phone screens; on a 1x
 screen their thin strokes land between pixels and look blurry, and a
 little extra weight brings them back onto whole pixels.
 """
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 A = "{http://schemas.android.com/apk/res/android}"
 bold = 0.0
+
+
+def path_data(d):
+    """Path data SVG can read. Animated vectors exported from Lottie end
+    shapes with a bare "c" that has no coordinates; Android skips it, but an
+    SVG renderer stops parsing there and loses every later subpath."""
+    return re.sub(r"[cC](?=\s*(?:[Mm]|$))", "", d)
 
 
 def alpha_of(color):
@@ -50,7 +58,7 @@ def convert(node):
             else:
                 out.append(f'<g transform="{t}">{convert(child)}</g>')
         elif tag == "path":
-            d = child.get(A + "pathData")
+            d = path_data(child.get(A + "pathData"))
             fill = child.get(A + "fillColor")
             stroke = child.get(A + "strokeColor")
             attrs = [f'd="{d}"']
@@ -82,7 +90,7 @@ def convert(node):
             rest = ET.Element("group")
             rest.extend(children[i + 1:])
             # In <defs>, or Qt's SVG renderer paints the clip shape itself
-            out.append(f'<defs><clipPath id="{cid}"><path d="{child.get(A + "pathData")}"/></clipPath></defs>'
+            out.append(f'<defs><clipPath id="{cid}"><path d="{path_data(child.get(A + "pathData"))}"/></clipPath></defs>'
                        f'<g clip-path="url(#{cid})">{convert(rest)}</g>')
             break
     return "".join(out)
