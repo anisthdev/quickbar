@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Io
 import QtQuick
+import ".."
 import "../components"
 
 // The screenshot and screen record menus, in place of the rofi ones: each
@@ -13,29 +14,42 @@ Scope {
 
     readonly property string menus: Quickshell.env("HOME") + "/.local/bin/menus"
 
+    // From the control panel (fromMenu), with a way back to it
+    function showScreenshot(fromMenu) {
+        screenshot.show(fromMenu);
+    }
+
+    function showRecord(fromMenu) {
+        if (record.open)
+            return;
+        recording.fromMenu = !!fromMenu;
+        recording.running = true;
+    }
+
     TileMenu {
         id: screenshot
 
         title: "Screenshot"
+        onBack: Panels.controlPanel?.returnFrom("screenshot")
         entries: [
             {
                 label: "Screen",
-                icon: "screenshot_monitor",
+                icon: "video-display",
                 command: [`${root.menus}/screenshot`, "screen"]
             },
             {
                 label: "Region",
-                icon: "screenshot_region",
+                icon: "gnome-screenshot",
                 command: [`${root.menus}/screenshot`, "region"]
             },
             {
                 label: "Window",
-                icon: "select_window",
+                icon: "preferences-system-windows",
                 command: [`${root.menus}/screenshot`, "window"]
             },
             {
                 label: "In 5 s",
-                icon: "timer_5_shutter",
+                icon: "xfce4-timer-plugin",
                 command: [`${root.menus}/screenshot`, "timer"]
             }
         ]
@@ -45,20 +59,21 @@ Scope {
         id: record
 
         title: "Screen record"
+        onBack: Panels.controlPanel?.returnFrom("record")
         entries: [
             {
                 label: "Screen",
-                icon: "screenshot_monitor",
+                icon: "video-display",
                 command: [`${root.menus}/screenrecord`, "screen"]
             },
             {
                 label: "Region",
-                icon: "screenshot_region",
+                icon: "simplescreenrecorder",
                 command: [`${root.menus}/screenrecord`, "region"]
             },
             {
                 label: "Window",
-                icon: "select_window",
+                icon: "preferences-system-windows",
                 command: [`${root.menus}/screenrecord`, "window"]
             }
         ]
@@ -68,12 +83,14 @@ Scope {
     Process {
         id: recording
 
+        property bool fromMenu: false
+
         command: ["pgrep", "-x", "wl-screenrec|wf-recorder"]
         onExited: code => {
             if (code === 0)
                 Quickshell.execDetached([`${root.menus}/screenrecord`, "stop"]);
             else
-                record.show();
+                record.show(fromMenu);
         }
     }
 
@@ -94,7 +111,7 @@ Scope {
             if (record.open)
                 record.hide();
             else
-                recording.running = true;
+                root.showRecord();
         }
     }
 }

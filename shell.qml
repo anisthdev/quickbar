@@ -49,7 +49,21 @@ ShellRoot {
         id: appLauncher
     }
 
-    PowerMenu {}
+    PowerMenu {
+        id: power
+    }
 
-    Capture {}
+    Capture {
+        id: capture
+    }
+
+    WallpaperPicker {
+        id: wallpaper
+    }
+
+    ControlPanel {
+        power: power
+        capture: capture
+        wallpaper: wallpaper
+    }
 }

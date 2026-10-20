@@ -60,6 +60,8 @@ Singleton {
     property color on_primary: Qt.rgba(89 / 255, 25 / 255, 44 / 255, 0.8)
     property color primary_container: Qt.rgba(117 / 255, 48 / 255, 66 / 255, 0.8)
     property color on_primary_container: Qt.rgba(255 / 255, 217 / 255, 223 / 255, 0.8)
+    property color secondary: Qt.rgba(176 / 255, 207 / 255, 169 / 255, 0.8)
+    property color on_secondary: Qt.rgba(29 / 255, 54 / 255, 28 / 255, 0.8)
     property color secondary_container: Qt.rgba(51 / 255, 77 / 255, 48 / 255, 0.8)
     property color on_secondary_container: Qt.rgba(204 / 255, 235 / 255, 196 / 255, 0.8)
     property color tertiary_fixed: Qt.rgba(175 / 255, 240 / 255, 213 / 255, 0.8)

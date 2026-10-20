@@ -1,9 +1,9 @@
 import QtQuick
 import ".."
 
-// Material 3 switch: when on, a primary track with a large handle carrying
-// a check mark; when off, an outlined track with a small handle. The handle
-// grows while pressed.
+// Material 3 switch: when on, a secondary track (calmer than primary) with
+// a large handle carrying a check mark; when off, an outlined track with a
+// small handle. The handle grows while pressed.
 Item {
     id: root
 
@@ -17,7 +17,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: height / 2
-        color: root.checked ? Theme.primary : Theme.surface_container_highest
+        color: root.checked ? Theme.secondary : Theme.surface_container_highest
         border.width: root.checked ? 0 : 2
         border.color: Theme.outline
 
@@ -38,7 +38,7 @@ Item {
         width: size
         height: size
         radius: size / 2
-        color: root.checked ? Theme.on_primary : Theme.outline
+        color: root.checked ? Theme.on_secondary : Theme.outline
 
         Behavior on x {
             NumberAnimation {
@@ -67,7 +67,7 @@ Item {
             anchors.centerIn: parent
             name: "check"
             size: 16
-            color: Theme.primary
+            color: Theme.secondary
             opacity: root.checked ? 1 : 0
 
             Behavior on opacity {

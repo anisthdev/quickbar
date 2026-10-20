@@ -12,10 +12,10 @@ Item {
     property string icon
     property bool dimmed: false
     property bool interactive: true
-    property color activeColor: dimmed ? Theme.outline : Theme.primary
+    property color activeColor: dimmed ? Theme.outline : Theme.secondary
     property color trackColor: Theme.surface_container_highest
     // The icon's colour while it sits on the active part
-    property color activeIconColor: Theme.on_primary
+    property color activeIconColor: Theme.on_secondary
 
     signal moved(real value)
     signal iconClicked

@@ -5,8 +5,8 @@ import QtQuick
 import ".."
 import "../components"
 
-// Wi-Fi or Ethernet status from NetworkManager. Click for the Wi-Fi menu,
-// right-click for the control panel's Wi-Fi page.
+// Wi-Fi or Ethernet status from NetworkManager. Click for the control
+// panel's Wi-Fi page.
 StatusItem {
     id: root
 
@@ -21,29 +21,20 @@ StatusItem {
         return wired ? "ethernet" : "wifi_off";
     }
     active: network !== null || wired !== null
-    open: menu.open
+    open: Panels.controlPanel?.openAt === "wifi"
     iconSize: network ? 13 : wired ? 24 : 17
     readonly property string label: network ? network.name : wired ? "Ethernet" : "Disconnected"
 
     text: Settings.showStatusDetails ? label : ""
 
     onClicked: event => {
-        if (event.button === Qt.MiddleButton)
-            return;
-        if (event.button === Qt.RightButton)
-            Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/menus/control-panel-script", "--page", "wifi"]);
-        else
-            menu.toggle();
-    }
-
-    WifiMenu {
-        id: menu
-        owner: root
+        if (event.button === Qt.LeftButton)
+            Panels.controlPanel?.toggle("wifi");
     }
 
     Tooltip {
         owner: root
-        shown: root.hovered && !menu.open && !Settings.showStatusDetails
+        shown: root.hovered && !root.open && !Settings.showStatusDetails
         text: root.label
     }
 
@@ -52,7 +43,7 @@ StatusItem {
         target: "wifi"
 
         function toggle(): void {
-            menu.toggle();
+            Panels.controlPanel?.toggle("wifi");
         }
     }
 }

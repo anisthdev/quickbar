@@ -5,8 +5,8 @@ import QtQuick
 import ".."
 import "../components"
 
-// Click for connected devices and their batteries, right-click for the
-// control panel's Bluetooth page (pairing and so on).
+// Click for the control panel's Bluetooth page: paired devices, their
+// batteries, connecting.
 StatusItem {
     id: root
 
@@ -17,26 +17,17 @@ StatusItem {
     icon: connected > 0 ? "bluetooth_connected" : "bluetooth"
     iconSize: 18
     active: powered
-    open: menu.open
+    open: Panels.controlPanel?.openAt === "bluetooth"
     text: Settings.showStatusDetails && powered ? String(connected) : ""
 
     onClicked: event => {
-        if (event.button === Qt.MiddleButton)
-            return;
-        if (event.button === Qt.RightButton)
-            Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/menus/control-panel-script", "--page", "bluetooth"]);
-        else
-            menu.toggle();
-    }
-
-    BluetoothMenu {
-        id: menu
-        owner: root
+        if (event.button === Qt.LeftButton)
+            Panels.controlPanel?.toggle("bluetooth");
     }
 
     Tooltip {
         owner: root
-        shown: root.hovered && !menu.open && !Settings.showStatusDetails
+        shown: root.hovered && !root.open && !Settings.showStatusDetails
         text: !root.powered ? "Bluetooth off" : root.connected === 1 ? "1 device connected" : `${root.connected} devices connected`
     }
 
@@ -45,7 +36,7 @@ StatusItem {
         target: "bluetooth"
 
         function toggle(): void {
-            menu.toggle();
+            Panels.controlPanel?.toggle("bluetooth");
         }
     }
 }

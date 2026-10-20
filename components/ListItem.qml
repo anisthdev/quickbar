@@ -4,9 +4,9 @@ import ".."
 
 // One row of a Material 3 Expressive grouped list, as in Android 16's quick
 // settings dialogs: rows of a group share round outer corners and have
-// tight corners between them. A selected row fills with the primary colour
-// and rounds all its corners. Children go on the right (battery, check
-// mark...); `extra` holds content that slides open below the row while
+// tight corners between them. A selected row fills with the secondary
+// container and rounds all its corners. Children go on the right (battery,
+// check mark...); `extra` holds content that slides open below the row while
 // `expanded`. Rows stagger in with their menu through `shown`/`revealIndex`.
 Rectangle {
     id: root
@@ -62,7 +62,7 @@ Rectangle {
     topRightRadius: topCorners
     bottomLeftRadius: bottomCorners
     bottomRightRadius: bottomCorners
-    color: !drawBackground ? "transparent" : selected ? Theme.primary_container : highlighted && !expanded ? highlightColor : clickable && mouse.containsMouse && !expanded ? Theme.surface_container_highest : Theme.surface_container_high
+    color: !drawBackground ? "transparent" : selected ? Theme.secondary_container : highlighted && !expanded ? highlightColor : clickable && mouse.containsMouse && !expanded ? Theme.surface_container_highest : Theme.surface_container_high
 
     Behavior on height {
         enabled: root.animateHeight
@@ -110,7 +110,7 @@ Rectangle {
         width: 36
         height: 36
         radius: Theme.radius
-        color: root.selected ? Theme.primary : Theme.primary_container
+        color: root.selected ? Theme.secondary : Theme.secondary_container
 
         Behavior on color {
             ColorAnimation {
@@ -122,7 +122,7 @@ Rectangle {
             anchors.centerIn: parent
             name: root.icon
             size: root.iconSize
-            color: root.selected ? Theme.on_primary : Theme.on_primary_container
+            color: root.selected ? Theme.on_secondary : Theme.on_secondary_container
         }
     }
 
@@ -147,7 +147,7 @@ Rectangle {
             anchors.verticalCenter: undefined
             width: parent.width
             text: root.text
-            color: root.selected ? Theme.on_primary_container : Theme.on_surface
+            color: root.selected ? Theme.on_secondary_container : Theme.on_surface
             elide: Text.ElideRight
         }
 
@@ -156,7 +156,7 @@ Rectangle {
             width: parent.width
             visible: text !== ""
             text: root.subtitle
-            color: root.selected ? Theme.on_primary_container : Theme.on_surface_variant
+            color: root.selected ? Theme.on_secondary_container : Theme.on_surface_variant
             opacity: root.selected ? 0.8 : 1
             font.pixelSize: 12
             font.weight: Font.Medium
@@ -187,7 +187,7 @@ Rectangle {
         visible: root.highlighted && root.focusRing
         color: "transparent"
         border.width: 2
-        border.color: root.selected ? Theme.on_primary_container : Theme.primary
+        border.color: root.selected ? Theme.on_secondary_container : Theme.primary
         topLeftRadius: root.topCorners
         topRightRadius: root.topCorners
         bottomLeftRadius: root.bottomCorners

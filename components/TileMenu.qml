@@ -1,5 +1,6 @@
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Widgets
 import QtQuick
 import ".."
 
@@ -10,7 +11,9 @@ import ".."
 // optional title sits above them.
 //
 // Keys: h/l (or the arrows, Tab) move, 0/^ and $ (or gg/G) go to the
-// ends, 1-9 pick directly, Enter or Space runs, q or Esc closes. The
+// ends, 1-9 pick directly, Enter or Space runs, q or Esc closes. Opened
+// from another menu (show(true)), a back arrow shows by the title, and it,
+// Backspace or Esc emit `back` once the menu has gone. The
 // choice runs once the menu has folded away, so a lock screen, a suspend
 // or a screenshot never catches it half drawn.
 Scope {
@@ -22,17 +25,28 @@ Scope {
     property var pending: null
 
     property string title
-    // [{ label, icon, command }, …]: icon from icons/, command an argv
+    // [{ label, icon, command }, …]: icon a theme icon name, command an argv
     property var entries: []
+    // Opened from another menu, which `back` returns to
+    property bool canGoBack: false
+    property bool goingBack: false
 
     // After the menu has gone and the entry's command (if any) has run
     signal activated(var entry)
+    signal back
 
-    function show() {
+    function show(fromMenu) {
         current = 0;
         pending = null;
+        goingBack = false;
+        canGoBack = !!fromMenu;
         open = true;
         keys.forceActiveFocus();
+    }
+
+    function goBack() {
+        goingBack = true;
+        hide();
     }
 
     function hide() {
@@ -90,8 +104,16 @@ Scope {
 
         // Gone from the screen first: a frame later the compositor has
         // dropped it too
-        onVisibleChanged: if (!visible && root.pending)
-            runLater.restart()
+        onVisibleChanged: {
+            if (visible)
+                return;
+            if (root.pending)
+                runLater.restart();
+            else if (root.goingBack) {
+                root.goingBack = false;
+                root.back();
+            }
+        }
 
         Timer {
             id: runLater
@@ -211,7 +233,14 @@ Scope {
                     case Qt.Key_Space:
                         root.run(root.current);
                         break;
+                    case Qt.Key_Backspace:
+                        if (!root.canGoBack)
+                            return;
+                        root.goBack();
+                        break;
                     case Qt.Key_Escape:
+                        root.canGoBack ? root.goBack() : root.hide();
+                        break;
                     case Qt.Key_Q:
                         root.hide();
                         break;
@@ -222,20 +251,33 @@ Scope {
                 }
             }
 
-            Label {
+            Row {
                 id: titleLabel
 
-                anchors.verticalCenter: undefined
                 visible: root.title !== ""
                 x: 20
                 y: 22
                 height: 34
-                verticalAlignment: Text.AlignVCenter
-                text: root.title
-                color: Theme.primary
-                font.pixelSize: 26
-                font.weight: Theme.titleWeight
-                roundness: Theme.titleRoundness
+                spacing: 4
+
+                IconButton {
+                    visible: root.canGoBack
+                    anchors.verticalCenter: parent.verticalCenter
+                    icon: "chevron"
+                    iconSize: 22
+                    color: Theme.primary
+                    onClicked: root.goBack()
+                }
+
+                Label {
+                    height: 34
+                    verticalAlignment: Text.AlignVCenter
+                    text: root.title
+                    color: Theme.primary
+                    font.pixelSize: 26
+                    font.weight: Theme.titleWeight
+                    roundness: Theme.titleRoundness
+                }
             }
 
             // The grouped list of the other menus, laid on its side: the
@@ -303,14 +345,12 @@ Scope {
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.bottom: parent.verticalCenter
                         anchors.bottomMargin: -2
-                        width: 28
-                        height: 28
+                        width: 36
+                        height: 36
 
-                        Icon {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            name: tile.modelData.icon
-                            size: 28
-                            color: tile.isCurrent ? Theme.on_secondary_container : Theme.on_surface
+                        IconImage {
+                            anchors.fill: parent
+                            source: Quickshell.iconPath(tile.modelData.icon, true)
                         }
                     }
 

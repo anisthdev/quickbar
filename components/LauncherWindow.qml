@@ -20,9 +20,19 @@ import ".."
 // `keywords`. Ties keep the entries' own order.
 //
 // entries: [{ label, icon }, …] plus whatever the owner needs; icon is a
-// theme icon name or a path. Long lists scroll after `maxRows` rows, and
-// with `bigCurrent` the current row grows to show its picture large (box
-// art, covers).
+// theme icon name or a path, and `subtitle`, `trailing` (a short state,
+// e.g. "On"), `checked` (a check mark) and `accent` (a row standing apart
+// in the tertiary colour, as a page's on/off switch) are optional. Long lists scroll
+// after `maxRows` rows, and with `bigCurrent` the current row grows to show
+// its picture large (box art, covers).
+//
+// For menus with pages (the control panel): with `canGoBack`, a back arrow
+// shows by the title, and it, h, Left or Backspace (and Esc with no
+// filter) emit `back`; `replay()` brings the rows
+// in again for a new page; `header` goes between the title and the field
+// (a slider); `extraKeys` gets the keys first. Setting `prompt` turns the
+// field into a password field showing it: Enter emits `submitted`, Esc
+// `promptCancelled`.
 Scope {
     id: root
 
@@ -37,11 +47,43 @@ Scope {
     property bool filtering: false
     property bool startTyping: false
     property real panelWidth: 500
+    property bool canGoBack: false
+    // Off where picks open pages or switch things in place
+    property bool closeOnPick: true
+    // An entry field naming each entry for good (e.g. "key"): changed
+    // entries then update their rows in place instead of rebuilding the
+    // list, so a refresh doesn't move the pick
+    property string entryKey: ""
+    property var extraKeys: null
+    property Component header: null
+    property string prompt: ""
+    // Off for a moment by replay(), so the rows reveal again
+    property bool revealed: true
 
     signal activated(var entry)
+    signal back
+    signal submitted(string text)
+    signal promptCancelled
+
+    // A new page: no filter, the pick at `index`, the rows coming in again
+    function replay(index) {
+        field.text = "";
+        stopFilter();
+        list.currentIndex = index ?? 0;
+        revealed = false;
+        Qt.callLater(() => root.revealed = true);
+    }
+
+    onPromptChanged: {
+        field.text = "";
+        if (prompt !== "")
+            startFilter();
+        else if (open)
+            stopFilter();
+    }
 
     readonly property var shown: {
-        const q = field.text.trim().toLowerCase();
+        const q = prompt !== "" ? "" : field.text.trim().toLowerCase();
         if (q === "")
             return entries;
         const rank = e => {
@@ -96,7 +138,8 @@ Scope {
         const entry = shown[index];
         if (!entry)
             return;
-        hide();
+        if (closeOnPick)
+            hide();
         root.activated(entry);
     }
 
@@ -202,11 +245,18 @@ Scope {
                 id: keys
 
                 Keys.onPressed: event => {
-                    if (listKeys.handle(event)) {
+                    if ((root.extraKeys && root.extraKeys(event)) || listKeys.handle(event)) {
                         event.accepted = true;
                         return;
                     }
                     switch (event.key) {
+                    case Qt.Key_H:
+                    case Qt.Key_Left:
+                    case Qt.Key_Backspace:
+                        if (!root.canGoBack)
+                            return;
+                        root.back();
+                        break;
                     case Qt.Key_Tab:
                         listKeys.move(1);
                         break;
@@ -223,9 +273,11 @@ Scope {
                         root.startFilter();
                         break;
                     case Qt.Key_Escape:
-                        // A filter left on goes first
+                        // A filter left on goes first, then the page
                         if (field.text !== "")
                             field.text = "";
+                        else if (root.canGoBack)
+                            root.back();
                         else
                             root.hide();
                         break;
@@ -248,21 +300,41 @@ Scope {
                 width: parent.width - 40
                 spacing: 14
 
-                Label {
-                    anchors.verticalCenter: undefined
+                Row {
                     visible: root.title !== ""
-                    leftPadding: 2
                     height: 34
-                    verticalAlignment: Text.AlignVCenter
-                    text: root.title
-                    color: Theme.primary
-                    // rofi's 20 pt
-                    font.pixelSize: 26
-                    font.weight: Theme.titleWeight
-                    roundness: Theme.titleRoundness
+                    spacing: 4
+
+                    IconButton {
+                        visible: root.canGoBack
+                        anchors.verticalCenter: parent.verticalCenter
+                        icon: "chevron"
+                        iconSize: 22
+                        color: Theme.primary
+                        onClicked: root.back()
+                    }
+
+                    Label {
+                        leftPadding: root.canGoBack ? 0 : 2
+                        height: 34
+                        verticalAlignment: Text.AlignVCenter
+                        text: root.title
+                        color: Theme.primary
+                        // rofi's 20 pt
+                        font.pixelSize: 26
+                        font.weight: Theme.titleWeight
+                        roundness: Theme.titleRoundness
+                    }
                 }
 
-                // The filter, outlined while typing into it
+                Loader {
+                    width: parent.width
+                    active: root.header !== null
+                    visible: active
+                    sourceComponent: root.header
+                }
+
+                // The filter, outlined while typing into it; or the prompt
                 Rectangle {
                     width: parent.width
                     height: 46
@@ -301,11 +373,23 @@ Scope {
                         font.pixelSize: 16
                         font.weight: Font.Medium
                         clip: true
-                        onTextChanged: list.currentIndex = 0
+                        echoMode: root.prompt !== "" ? TextInput.Password : TextInput.Normal
+                        onTextChanged: if (root.prompt === "")
+                            list.currentIndex = 0
 
                         // Typing filters; these move and leave
                         Keys.onPressed: event => {
                             const ctrl = event.modifiers & Qt.ControlModifier;
+                            if (root.prompt !== "") {
+                                if (event.key === Qt.Key_Escape)
+                                    root.promptCancelled();
+                                else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                                    root.submitted(field.text);
+                                else
+                                    return;
+                                event.accepted = true;
+                                return;
+                            }
                             switch (event.key) {
                             case Qt.Key_Escape:
                                 root.stopFilter();
@@ -344,7 +428,7 @@ Scope {
                     Label {
                         anchors.left: field.left
                         visible: field.text === ""
-                        text: root.placeholder
+                        text: root.prompt || root.placeholder
                         color: Theme.on_surface_variant
                         font.pixelSize: 16
                         font.weight: Font.Normal
@@ -365,7 +449,10 @@ Scope {
                     clip: true
                     interactive: rows < count
                     boundsBehavior: Flickable.StopAtBounds
-                    model: root.shown
+                    model: ScriptModel {
+                        values: root.shown
+                        objectProp: root.entryKey
+                    }
                     // Keep the current row in view as the keys move it
                     highlightRangeMode: ListView.ApplyRange
                     preferredHighlightBegin: 0
@@ -429,16 +516,32 @@ Scope {
                             }
                         }
                         text: modelData.label
-                        first: index === 0
-                        last: index === list.count - 1
+                        subtitle: modelData.subtitle ?? ""
+                        // An accent row stands alone, all corners round
+                        first: index === 0 || modelData.accent || (root.shown[index - 1]?.accent ?? false)
+                        last: index === list.count - 1 || modelData.accent || (root.shown[index + 1]?.accent ?? false)
                         clickable: true
                         // The background is drawn below, under the sliding fill
                         drawBackground: false
-                        shown: root.open
+                        shown: root.open && root.revealed
                         revealIndex: Math.min(index, 8)
                         onClicked: root.run(index)
                         onHoveredChanged: if (hovered)
                             list.currentIndex = index
+
+                        Label {
+                            visible: text !== ""
+                            text: item.modelData.trailing ?? ""
+                            color: Theme.on_surface_variant
+                            font.pixelSize: 13
+                        }
+
+                        Icon {
+                            visible: item.modelData.checked ?? false
+                            name: "check"
+                            size: 20
+                            color: Theme.on_secondary_container
+                        }
 
                         // The row's background, moved under the list's
                         // highlight; it follows the row, fading in with it
@@ -453,7 +556,7 @@ Scope {
                             topRightRadius: item.topCorners
                             bottomLeftRadius: item.bottomCorners
                             bottomRightRadius: item.bottomCorners
-                            color: item.hovered && !item.isCurrent ? Theme.surface_container_highest : Theme.surface_container_high
+                            color: item.modelData.accent ? Theme.tertiary_container : item.hovered && !item.isCurrent ? Theme.surface_container_highest : Theme.surface_container_high
                             opacity: item.opacity
                         }
                     }

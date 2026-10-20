@@ -84,6 +84,6 @@ Media controls are Material Symbols Rounded (filled): `media_play_arrow`,
 Battery card power modes are Material Symbols Rounded (filled):
 `power_energy_savings_leaf`, `power_balance`, `power_speed`.
 
-Power menu: `power_off` and `restart` are Android's own power menu icons,
-core/res/res/drawable/ic_lock_power_off.xml and ic_restart.xml; `lock_screen`,
-`bedtime` (suspend) and `ac_unit` (hibernate) are Material Symbols Rounded.
+The control panel's sliders: `mic` and `mic_off`, Material Symbols
+Rounded. (The power, screenshot and screen record menus use Papirus
+icons, as the control panel does.)

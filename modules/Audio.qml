@@ -6,8 +6,9 @@ import ".."
 import "../components"
 
 // Icon, then the output's name and volume level when the status details
-// are on: click for the output picker, scroll for volume, middle-click to
-// show or hide the details, right-click for the control panel's input page.
+// are on: click for the control panel's Sound page, right-click for its
+// Microphone page, scroll for volume, middle-click to show or hide the
+// details.
 StatusItem {
     id: root
 
@@ -21,7 +22,7 @@ StatusItem {
     icon: (bluetooth ? "volume_bt" : "volume") + (muted ? "_mute" : "")
     iconSize: 18
     active: !muted
-    open: menu.open
+    open: ["sound", "mic"].includes(Panels.controlPanel?.openAt)
     readonly property string sinkName: sink?.description || sink?.nickname || sink?.name || ""
 
     readonly property int level: Math.round(volume * 100)
@@ -32,9 +33,9 @@ StatusItem {
         if (event.button === Qt.MiddleButton)
             return;
         if (event.button === Qt.RightButton)
-            Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/menus/control-panel-script", "--page", "audio-inputs"]);
+            Panels.controlPanel?.toggle("mic");
         else
-            menu.toggle();
+            Panels.controlPanel?.toggle("sound");
     }
 
     onScrolled: event => {
@@ -49,15 +50,10 @@ StatusItem {
         objects: [root.sink]
     }
 
-    AudioMenu {
-        id: menu
-        owner: root
-    }
-
     Tooltip {
         owner: root
         // What the details would show, when they're hidden
-        shown: root.hovered && !menu.open && !Settings.showStatusDetails
+        shown: root.hovered && !root.open && !Settings.showStatusDetails
         text: root.sinkName ? `${root.sinkName} · ${root.level}%` : `${root.level}%`
     }
 
@@ -66,7 +62,7 @@ StatusItem {
         target: "audio"
 
         function toggle(): void {
-            menu.toggle();
+            Panels.controlPanel?.toggle("sound");
         }
     }
 }
