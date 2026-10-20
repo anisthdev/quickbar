@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# quickbar's media search (modules/MediaSearch.qml): Jackett's results as
+# JSON, and the pick added to Transmission or streamed with peerflix.
+#   media-search KIND --json QUERY        matching results, best first
+#   media-search KIND --add MAGNET TITLE  add to Transmission (a failure
+#                                         notifies; the bar shows a success)
+#   media-search KIND --stream MAGNET TITLE
+# KIND is movies, anime, hindi or books. QUERY takes s:N and ep:N for a
+# season and episode. --json exits 2 without an API key, 3 when Jackett
+# can't be reached and 4 on a response it can't read, saying why on stderr.
+set -euo pipefail
+
+kind="${1:-}"
+shift || true
+limit=30
+timeout=120
+tv_category=""
+case "$kind" in
+movies) indexer="tag:movies" type="search" category="2000,5000" tv_category="5000" ;;
+anime) indexer="tag:anime" type="search" category="" ;;
+hindi) indexer="tag:step" type="movie" category="6000" ;;
+books) indexer="tag:books" type="book" category="7000,7020,7030" ;;
+*)
+    echo "usage: media-search movies|anime|hindi|books --json QUERY | --add|--stream MAGNET TITLE" >&2
+    exit 2
+    ;;
+esac
+
+# The API key and port from Jackett's own config
+load_config() {
+    local config=/var/lib/jackett/ServerConfig.json
+    api_key=""
+    url="http://127.0.0.1:9117"
+    [[ -r $config ]] || return 0
+    api_key="$(jq -r '.APIKey // empty' "$config")"
+    url="http://127.0.0.1:$(jq -r '.Port // 9117' "$config")"
+}
+
+# "name s:2 ep:5" → query, season, episode
+parse_query() {
+    local part words=()
+    season=""
+    episode=""
+    for part in $1; do
+        if [[ $part =~ ^[sS]:([0-9]+)$ ]]; then
+            season="${BASH_REMATCH[1]}"
+        elif [[ $part =~ ^[eE][pP]:([0-9]+)$ ]]; then
+            episode="${BASH_REMATCH[1]}"
+        else
+            words+=("$part")
+        fi
+    done
+    query="${words[*]}"
+}
+
+fetch() {
+    local search_type="$type" cat="$category"
+    if [[ -n $season || -n $episode ]]; then
+        search_type="tvsearch"
+        [[ -n $tv_category ]] && cat="$tv_category"
+    fi
+    local args=(
+        --data-urlencode "apikey=$api_key"
+        --data-urlencode "t=$search_type"
+        --data-urlencode "q=$query"
+        --data-urlencode "limit=$limit"
+    )
+    [[ -n $cat ]] && args+=(--data-urlencode "cat=$cat")
+    [[ -n $season ]] && args+=(--data-urlencode "season=$season")
+    [[ -n $episode ]] && args+=(--data-urlencode "ep=$episode")
+    curl -fsS --get --max-time "$timeout" "${args[@]}" \
+        "$url/api/v2.0/indexers/$indexer/results/torznab/api"
+}
+
+# Torznab's XML to [{ title, indexer, tracker, size_bytes, seeders, peers,
+# leechers, magnet_uri }], titles matching the query first, then by seeders
+normalize() {
+    xq -r '.' | jq --arg query "$query" '
+        def norm:
+            ascii_downcase | gsub("[^a-z0-9]+"; " ") | gsub("^ +| +$"; "") | gsub(" +"; " ");
+        def num(v):
+            (v // 0 | tostring | tonumber? // 0);
+        def first_attr($name):
+            (."torznab:attr" // [])
+            | if type == "array" then map(select(."@name" == $name) | ."@value") | .[0]
+              else select(."@name" == $name) | ."@value"
+              end;
+        def tracker_code:
+            gsub("(?<left>[a-z])(?<right>[A-Z])"; "\(.left) \(.right)")
+            | split("[^A-Za-z0-9]+"; "")
+            | map(select(length > 0))
+            | if length == 0 then "JKT"
+              elif length == 1 then (.[0] | ascii_upcase | .[0:4])
+              else (map(.[0:1] | ascii_upcase) | join("") | .[0:4])
+              end;
+        def score($q):
+            ((.title // "") | norm) as $title
+            | ($q | norm) as $query
+            | if $query == "" then 9
+              elif $title == $query then 0
+              elif ($title | startswith($query)) then 1
+              elif ($title | contains($query)) then 2
+              else 9
+              end;
+
+        (.rss.channel.item // [])
+        | if type == "array" then . elif . == null then [] else [.] end
+        | map(
+            ((.jackettindexer."#text" // .jackettindexer // "Jackett") | tostring) as $indexer
+            | {
+                title: (.title // "Untitled"),
+                indexer: $indexer,
+                tracker: ($indexer | tracker_code),
+                size_bytes: num(.size),
+                seeders: num(first_attr("seeders")),
+                peers: num(first_attr("peers")),
+                leechers: ((num(first_attr("peers")) - num(first_attr("seeders"))) | if . > 0 then . else 0 end),
+                magnet_uri: (first_attr("magneturl") // .link // .guid // "")
+            }
+            | select(.magnet_uri != "")
+            | .score = score($query)
+        )
+        | map(select(.score < 9))
+        | sort_by(.score, (-.seeders), (-.peers))
+    '
+}
+
+vpn_active() {
+    nmcli -t -f TYPE,STATE connection show --active 2>/dev/null |
+        awk -F: '$1=="vpn" && $2=="activated" { found = 1 } END { exit(found ? 0 : 1) }'
+}
+
+case "${1:-}" in
+--json)
+    shift
+    load_config
+    [[ -n $api_key ]] || { echo "Missing Jackett API key" >&2; exit 2; }
+    parse_query "$*"
+    [[ -n $query ]] || { echo "[]"; exit 0; }
+    response="$(fetch)" || { echo "Could not reach Jackett at $url" >&2; exit 3; }
+    printf '%s' "$response" | normalize || { echo "Jackett returned an unreadable response" >&2; exit 4; }
+    ;;
+--add)
+    transmission-remote -a "$2" >/dev/null 2>&1 ||
+        { notify-send --icon=dialog-error "Transmission" "Failed to add: ${3:-}"; exit 1; }
+    ;;
+--stream)
+    # Around the VPN, which slows it
+    if vpn_active; then
+        nohup vpn-bypass -- peerflix "$2" --mpv --remove >/dev/null 2>&1 </dev/null &
+    else
+        nohup peerflix "$2" --mpv --remove >/dev/null 2>&1 </dev/null &
+    fi
+    notify-send --icon=video-x-generic "Peerflix" "Streaming: ${3:-}"
+    ;;
+*)
+    echo "usage: media-search $kind --json QUERY | --add|--stream MAGNET TITLE" >&2
+    exit 2
+    ;;
+esac

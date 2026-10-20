@@ -91,3 +91,7 @@ record menus use Papirus icons, as the control panel does.)
 The emoji picker's group icons (`schedule` and the `emoji_*` ones) and the
 lock screen's `fingerprint` are
 Material Symbols Rounded.
+
+Weather icons (`weather/`, the weather card and pill) are the dark set from
+~/Projects/waybar-weather's `icons/dark`, named as `weather --forecast`
+names them.

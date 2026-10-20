@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# quickbar's screenshot (modules/Capture.qml): saved by hyprshot, with the
+# shutter sound.
+#   screenshot screen   the focused screen
+#   screenshot region   a region picked with the mouse
+#   screenshot window   a window picked with the mouse
+#   screenshot timer    the focused screen after a 5 s countdown
+
+shutter() {
+    pw-play ~/.local/share/sounds/macos/camera-shutter.ogg &
+}
+
+# One card counting down in place (each lasts past the next, which takes it
+# over), closed before the shot
+countdown() {
+    local id
+    for sec in $(seq "$1" -1 1); do
+        id=$(notify-send -p -t 2000 \
+            --hint=string:x-canonical-private-synchronous:shot \
+            "Taking shot in : $sec")
+        sleep 1
+    done
+    gdbus call --session --dest org.freedesktop.Notifications \
+        --object-path /org/freedesktop/Notifications \
+        --method org.freedesktop.Notifications.CloseNotification "$id" >/dev/null
+    sleep 0.4
+}
+
+case "$1" in
+screen) hyprshot -m active -m output && shutter ;;
+region) hyprshot -m region && shutter ;;
+window) hyprshot -m window && shutter ;;
+timer) countdown 5 && hyprshot -m active -m output && shutter ;;
+*)
+    echo "usage: screenshot screen|region|window|timer" >&2
+    exit 2
+    ;;
+esac

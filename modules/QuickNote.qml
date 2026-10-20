@@ -70,7 +70,7 @@ Scope {
         entries: root.recent
         onSubmitted: text => {
             if (text.trim() !== "")
-                Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/menus/quick-note", text]);
+                Quickshell.execDetached([Quickshell.shellDir + "/scripts/quick-note", text]);
             menu.hide();
         }
         onPromptCancelled: menu.hide()

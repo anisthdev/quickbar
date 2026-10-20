@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# quickbar's screen recording (modules/Capture.qml): wl-screenrec to
+# ~/Videos, with a tray icon (the tray CLI) that stops it on a click.
+#   screenrecord screen   the focused screen
+#   screenrecord region   a region picked with the mouse
+#   screenrecord window   a window on this workspace picked with the mouse
+#   screenrecord stop     stops a recording
+
+tray_id="screenrecord"
+icon="/usr/share/icons/Papirus-Dark/128x128/apps/com.github.mohelm97.screenrecorder.svg"
+stop="pkill -x wl-screenrec"
+
+record() {
+    local file="$HOME/Videos/screenrecording-$(date +'%Y-%m-%d_%H-%M-%S').mp4"
+    notify-send "Screen recording starting..." -t 1000 -i "$icon"
+    sleep 1
+    tray run --id "$tray_id" --icon record --tooltip "Recording screen" --on-click "$stop" --duration -- \
+        wl-screenrec -f "$file" --ffmpeg-encoder-options="-c:v libx264 -crf 23 -preset medium -movflags +faststart" "$@"
+    tray hide --id "$tray_id"
+    notify-send "Screen recording saved to ~/Videos" -t 2000 -i "$icon"
+}
+
+case "$1" in
+screen)
+    record --output "$(hyprctl monitors -j | jq -r '.[] | select(.focused).name')"
+    ;;
+region)
+    region=$(slurp) || exit 1
+    record -g "$region"
+    ;;
+window)
+    workspace=$(hyprctl activeworkspace -j | jq -r '.id')
+    region=$(hyprctl clients -j | jq -r --argjson ws "$workspace" \
+        '.[] | select(.workspace.id == $ws) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"' | slurp) || exit 1
+    record -g "$region"
+    ;;
+stop)
+    pkill -x wl-screenrec
+    ;;
+*)
+    echo "usage: screenrecord screen|region|window|stop" >&2
+    exit 2
+    ;;
+esac

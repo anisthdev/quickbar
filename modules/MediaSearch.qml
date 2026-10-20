@@ -9,8 +9,7 @@ import "../components"
 // caller opened it for, named in the title), then download the pick with
 // Transmission or stream it with peerflix. Opened for "play", it plays a
 // pasted URL or magnet link instead, starting from a link on the clipboard. The Jackett side is
-// jackett-search's --json, --add and --stream, shared with the rofi menus
-// of the old setup; this is the window.
+// scripts/media-search; this is the window.
 //
 // It opens at the bottom centre at the rofi menu's size, widening and
 // growing only once there are results.
@@ -24,30 +23,26 @@ import "../components"
 Scope {
     id: root
 
-    readonly property string menus: Quickshell.env("HOME") + "/.local/bin/menus"
+    readonly property string search: Quickshell.shellDir + "/scripts/media-search"
     readonly property var kinds: [
         {
             id: "movies",
             label: "Movies",
-            script: "movie-search",
             noun: "movies"
         },
         {
             id: "anime",
             label: "Anime",
-            script: "anime-search",
             noun: "anime"
         },
         {
             id: "hindi",
             label: "Hindi",
-            script: "hindi-movie-search",
             noun: "Hindi movies"
         },
         {
             id: "books",
             label: "Books",
-            script: "ebook-search",
             noun: "ebooks"
         },
         // Not a search: play what's pasted, as play-video does
@@ -133,7 +128,7 @@ Scope {
         searched = query;
         phase = "searching";
         job = jobComponent.createObject(root, {
-            command: [`${menus}/${current.script}`, "--json", query]
+            command: [root.search, current.id, "--json", query]
         });
     }
 
@@ -167,7 +162,7 @@ Scope {
             return;
         // Quietly: the bar's downloads ring is the confirmation (a failure
         // still notifies)
-        Quickshell.execDetached(["env", "JACKETT_QUIET=1", `${menus}/${current.script}`, stream ? "--stream" : "--add", r.magnet_uri, r.title]);
+        Quickshell.execDetached([root.search, current.id, stream ? "--stream" : "--add", r.magnet_uri, r.title]);
         // Have it show there as soon as Transmission has it
         if (!stream)
             Transmission.expect();

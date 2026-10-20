@@ -11,7 +11,7 @@ Scope {
 
     readonly property string retroarch: Quickshell.env("HOME") + "/.config/retroarch"
     readonly property string thumbs: `${retroarch}/thumbnails/Nintendo - Nintendo Entertainment System/Named_Boxarts`
-    readonly property string quitOnClose: Quickshell.env("HOME") + "/.local/bin/menus/retroarch-quit-on-close.cfg"
+    readonly property string quitOnClose: Quickshell.shellDir + "/data/retroarch-quit-on-close.cfg"
 
     property var playlist: []
     // Box art files there are, by name

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# quickbar's quick note (modules/QuickNote.qml): appends the note to
+# ~/Notes/inbox.md under today's heading.
+#   quick-note TEXT
+set -euo pipefail
+
+inbox="$HOME/Notes/inbox.md"
+note="$(printf '%s' "$*" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+[[ -n "$note" ]] || exit 0
+
+heading="## $(date +%d-%m-%y)"
+[[ -f "$inbox" ]] || printf '# Inbox\n' >"$inbox"
+grep -qxF "$heading" "$inbox" || printf '\n%s\n\n' "$heading" >>"$inbox"
+printf -- '- %s %s\n' "$(date +%H:%M)" "$note" >>"$inbox"
+
+notify-send "Note saved" "$note" -i accessories-text-editor

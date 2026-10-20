@@ -12,8 +12,7 @@ import "../components"
 Pill {
     id: root
 
-    readonly property string weatherDir: Quickshell.env("HOME") + "/.config/waybar/weather"
-    readonly property string iconDir: weatherDir + "/.icons/dark"
+    readonly property string iconDir: Quickshell.shellDir + "/icons/weather"
 
     // The whole --forecast document, null until the first fetch lands
     property var data: null
@@ -41,7 +40,7 @@ Pill {
     Process {
         id: proc
 
-        command: [root.weatherDir + "/waybar-weather", "--forecast"]
+        command: [Quickshell.env("HOME") + "/.local/bin/weather", "--forecast"]
         stdout: StdioCollector {
             onStreamFinished: {
                 // Keep the last good data through bad output and errors (a
