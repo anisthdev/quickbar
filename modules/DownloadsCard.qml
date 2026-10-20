@@ -11,6 +11,30 @@ Dropdown {
 
     menuWidth: 360
     title: "Downloads"
+    onOpenChanged: if (open)
+        cursor.currentIndex = -1
+    // j/k/gg/G move over the downloads, Space or p pauses or resumes one
+    keyHandler: event => {
+        if (keys.handle(event))
+            return true;
+        if (event.key === Qt.Key_Space || event.key === Qt.Key_P) {
+            const t = Transmission.active[cursor.currentIndex];
+            if (t)
+                Transmission.toggle(t);
+            return true;
+        }
+        return false;
+    }
+
+    RowCursor {
+        id: cursor
+        count: Transmission.active.length
+    }
+
+    ListKeys {
+        id: keys
+        list: cursor
+    }
 
     Repeater {
         model: ScriptModel {
@@ -89,6 +113,19 @@ Dropdown {
                 iconSize: 18
                 color: Theme.on_surface_variant
                 onClicked: Transmission.toggle(row.torrent)
+            }
+
+            // Focus ring
+            Rectangle {
+                anchors.fill: parent
+                visible: cursor.currentIndex === row.index
+                color: "transparent"
+                border.width: 2
+                border.color: Theme.primary
+                topLeftRadius: row.topLeftRadius
+                topRightRadius: row.topRightRadius
+                bottomLeftRadius: row.bottomLeftRadius
+                bottomRightRadius: row.bottomRightRadius
             }
 
             MenuReveal {

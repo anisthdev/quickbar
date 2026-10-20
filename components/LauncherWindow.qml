@@ -384,6 +384,8 @@ Scope {
                         last: index === list.count - 1
                         clickable: true
                         highlighted: ListView.isCurrentItem
+                        // One row is always picked here, as in rofi
+                        focusRing: false
                         shown: root.open
                         revealIndex: Math.min(index, 8)
                         onClicked: root.run(index)

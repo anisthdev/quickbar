@@ -30,6 +30,32 @@ Dropdown {
     }
 
     menuWidth: 340
+    // Space or p plays and pauses, h/l the track before or after, H/L seek
+    // 10 s, s shuffles, r cycles repeat
+    keyHandler: event => {
+        const capital = (event.modifiers & Qt.ShiftModifier) || event.text === "H" || event.text === "L";
+        switch (event.key) {
+        case Qt.Key_Space:
+        case Qt.Key_P:
+            player.mpc("toggle");
+            return true;
+        case Qt.Key_H:
+        case Qt.Key_Left:
+            capital ? player.mpc("seek", "-10") : player.mpc("prev");
+            return true;
+        case Qt.Key_L:
+        case Qt.Key_Right:
+            capital ? player.mpc("seek", "+10") : player.mpc("next");
+            return true;
+        case Qt.Key_S:
+            player.mpc("random");
+            return true;
+        case Qt.Key_R:
+            cycleRepeat();
+            return true;
+        }
+        return false;
+    }
 
     // Art and song
     Row {

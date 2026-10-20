@@ -10,6 +10,8 @@ Rectangle {
     property bool checked: false
     // Entrance with the menu, see MenuReveal
     property bool shown: true
+    // The keyboard is on it: a focus ring, as on ListItem
+    property bool highlighted: false
 
     signal toggled
 
@@ -22,6 +24,15 @@ Rectangle {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         onClicked: root.toggled()
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: root.highlighted
+        color: "transparent"
+        radius: parent.radius
+        border.width: 2
+        border.color: Theme.primary
     }
 
     Label {

@@ -48,6 +48,28 @@ Dropdown {
 
     // 284 of content: the day grid's width
     menuWidth: 324
+    // h/l (or the arrows) the month before or after, t back to today
+    keyHandler: event => {
+        switch (event.key) {
+        case Qt.Key_H:
+        case Qt.Key_Left:
+        case Qt.Key_K:
+        case Qt.Key_Up:
+            showMonth(-1);
+            return true;
+        case Qt.Key_L:
+        case Qt.Key_Right:
+        case Qt.Key_J:
+        case Qt.Key_Down:
+            showMonth(1);
+            return true;
+        case Qt.Key_T:
+            if (!onCurrentMonth)
+                showToday();
+            return true;
+        }
+        return false;
+    }
 
     onOpenChanged: if (open)
         month = new Date(today.getFullYear(), today.getMonth(), 1)

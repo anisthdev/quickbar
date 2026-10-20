@@ -8,6 +8,10 @@ import "../components"
 // with the connected one first. Saved and open networks connect on click;
 // other secured ones open a password field in their row. Scans only while
 // the menu is open.
+//
+// Keys: j/k/gg/G move over the Wi-Fi switch and the networks (the list
+// scrolls along), Enter or Space toggles or connects as a click does. In a
+// password field, Enter connects and Esc closes it.
 Dropdown {
     id: root
 
@@ -41,18 +45,36 @@ Dropdown {
     onOpenChanged: {
         if (device)
             device.scannerEnabled = open;
-        if (open)
+        if (open) {
             order = [];
-        else
+            cursor.currentIndex = -1;
+        } else {
             askingPassword = null;
+        }
     }
 
     function signalIcon(network) {
         return `wifi_${Math.min(3, Math.floor((network?.signalStrength ?? 0) * 4))}`;
     }
 
+    // A network's row clicked, or Enter on it: connect, or ask for its
+    // password first
+    function choose(network, index) {
+        if (!network || network.connected)
+            return;
+        if (network.known || network.security === WifiSecurityType.Open)
+            connect(network);
+        else
+            askingPassword = askingPassword === network ? null : network;
+        if (askingPassword === network) {
+            reveal.index = index;
+            reveal.restart();
+        }
+    }
+
     function connect(network, password) {
         askingPassword = null;
+        takeKeys();
         if (password !== undefined)
             network.connectWithPsk(password);
         else
@@ -61,11 +83,41 @@ Dropdown {
 
     menuWidth: 340
     title: "Wi-Fi"
+    keyHandler: event => {
+        if (keys.handle(event)) {
+            // Row 0 is the switch; the networks follow
+            if (cursor.currentIndex > 0)
+                list.positionViewAtIndex(cursor.currentIndex - 1, ListView.Contain);
+            return true;
+        }
+        switch (event.key) {
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+        case Qt.Key_Space:
+            if (cursor.currentIndex === 0)
+                Networking.wifiEnabled = !wifiOn;
+            else if (cursor.currentIndex > 0)
+                choose(networks[cursor.currentIndex - 1], cursor.currentIndex - 1);
+            return true;
+        }
+        return false;
+    }
+
+    RowCursor {
+        id: cursor
+        count: 1 + root.networks.length
+    }
+
+    ListKeys {
+        id: keys
+        list: cursor
+    }
 
     SwitchRow {
         text: "Use Wi-Fi"
         checked: root.wifiOn
         shown: root.open
+        highlighted: cursor.currentIndex === 0
         onToggled: Networking.wifiEnabled = !root.wifiOn
     }
 
@@ -143,6 +195,7 @@ Dropdown {
             first: index === 0
             last: index === root.networks.length - 1
             selected: modelData?.connected ?? false
+            highlighted: cursor.currentIndex === index + 1
             clickable: !selected
             expanded: root.askingPassword === modelData
             shown: root.open
@@ -150,14 +203,7 @@ Dropdown {
 
             onClicked: {
                 failure = "";
-                if (modelData.known || !secured)
-                    root.connect(modelData);
-                else
-                    root.askingPassword = expanded ? null : modelData;
-                if (root.askingPassword === modelData) {
-                    reveal.index = index;
-                    reveal.restart();
-                }
+                root.choose(modelData, index);
             }
 
             Connections {
@@ -179,6 +225,10 @@ Dropdown {
                 width: item.width
                 active: item.expanded
                 onSubmitted: password => root.connect(item.modelData, password)
+                onCancelled: {
+                    root.askingPassword = null;
+                    root.takeKeys();
+                }
             }
         }
     }

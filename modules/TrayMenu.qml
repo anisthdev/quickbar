@@ -8,6 +8,10 @@ import "../components"
 // the app's toolkit style. Separators split the entries into grouped
 // lists; check and radio entries show a check mark when on. An entry with
 // a submenu slides the menu across to it, with a back row on top.
+//
+// Keys: j/k/gg/G move over the entries you can use (separators and greyed
+// out ones are skipped), Enter, l or Space runs one or opens its submenu,
+// h or Backspace goes back out of a submenu.
 Dropdown {
     id: root
 
@@ -20,6 +24,12 @@ Dropdown {
     // closing a menu destroys its entries, including the submenu's own
     property var currentOpener: rootOpener
     readonly property var entries: currentOpener.children.values
+    // Indexes of the entries the keys can land on
+    readonly property var stops: entries.map((e, i) => e.isSeparator || !e.enabled ? -1 : i).filter(i => i >= 0)
+    readonly property int keyed: stops[cursor.currentIndex] ?? -1
+    // Whether the keys are in use, so a submenu opened by them starts with
+    // its first entry focused
+    property bool usingKeys: false
 
     // Whether an entry starts or ends a group (separators split groups)
     function startsGroup(i) {
@@ -33,11 +43,22 @@ Dropdown {
         path = path.concat([entry]);
         slide.from = 28;
         pageAnim.restart();
+        cursor.currentIndex = usingKeys ? 0 : -1;
     }
     function back() {
         path = path.slice(0, -1);
         slide.from = -28;
         pageAnim.restart();
+        cursor.currentIndex = usingKeys ? 0 : -1;
+    }
+
+    function run(entry) {
+        if (entry.hasChildren) {
+            enter(entry);
+        } else {
+            entry.triggered();
+            open = false;
+        }
     }
 
     menuWidth: 240
@@ -47,8 +68,43 @@ Dropdown {
     cornerRadius: 12
     smoothResize: true
 
-    onOpenChanged: if (open)
-        path = []
+    onOpenChanged: if (open) {
+        path = [];
+        usingKeys = false;
+        cursor.currentIndex = -1;
+    }
+    keyHandler: event => {
+        usingKeys = true;
+        if (keys.handle(event))
+            return true;
+        switch (event.key) {
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+        case Qt.Key_L:
+        case Qt.Key_Right:
+        case Qt.Key_Space:
+            if (keyed >= 0)
+                run(entries[keyed]);
+            return true;
+        case Qt.Key_H:
+        case Qt.Key_Left:
+        case Qt.Key_Backspace:
+            if (current)
+                back();
+            return true;
+        }
+        return false;
+    }
+
+    RowCursor {
+        id: cursor
+        count: root.stops.length
+    }
+
+    ListKeys {
+        id: keys
+        list: cursor
+    }
 
     QsMenuOpener {
         id: rootOpener
@@ -187,16 +243,10 @@ Dropdown {
                     first: root.startsGroup(entry.index)
                     last: root.endsGroup(entry.index)
                     clickable: entry.modelData.enabled
+                    highlighted: root.keyed === entry.index
                     shown: root.open
                     revealIndex: entry.index + 1
-                    onClicked: {
-                        if (entry.modelData.hasChildren) {
-                            root.enter(entry.modelData);
-                        } else {
-                            entry.modelData.triggered();
-                            root.open = false;
-                        }
-                    }
+                    onClicked: root.run(entry.modelData)
 
                     Icon {
                         visible: entry.checkable && entry.modelData.checkState === Qt.Checked

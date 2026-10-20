@@ -6,6 +6,9 @@ import "../components"
 // Volume slider for the current sink, then an output picker: every
 // PipeWire sink, with the current one highlighted. Picking a row makes it
 // the default sink.
+//
+// Keys: h/l the volume by 5% (H/L by 1%), m mutes, j/k/gg/G move through
+// the outputs, Enter or Space picks one.
 Dropdown {
     id: root
 
@@ -25,8 +28,55 @@ Dropdown {
         return "device_speaker";
     }
 
+    function nudge(by) {
+        const audio = Pipewire.defaultAudioSink?.audio;
+        if (audio)
+            audio.volume = Math.max(0, Math.min(1, Math.round((audio.volume + by) * 100) / 100));
+    }
+
     menuWidth: 340
     title: "Sound"
+    onOpenChanged: if (open)
+        cursor.currentIndex = -1
+    keyHandler: event => {
+        if (keys.handle(event))
+            return true;
+        const big = !(event.modifiers & Qt.ShiftModifier) && event.text !== "H" && event.text !== "L";
+        switch (event.key) {
+        case Qt.Key_H:
+        case Qt.Key_Left:
+            nudge(big ? -0.05 : -0.01);
+            return true;
+        case Qt.Key_L:
+        case Qt.Key_Right:
+            nudge(big ? 0.05 : 0.01);
+            return true;
+        case Qt.Key_M:
+            {
+                const audio = Pipewire.defaultAudioSink?.audio;
+                if (audio)
+                    audio.muted = !audio.muted;
+                return true;
+            }
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+        case Qt.Key_Space:
+            if (sinks[cursor.currentIndex])
+                Pipewire.preferredDefaultAudioSink = sinks[cursor.currentIndex];
+            return true;
+        }
+        return false;
+    }
+
+    RowCursor {
+        id: cursor
+        count: root.sinks.length
+    }
+
+    ListKeys {
+        id: keys
+        list: cursor
+    }
 
     Slider {
         id: slider
@@ -86,6 +136,7 @@ Dropdown {
             first: index === 0
             last: index === root.sinks.length - 1
             selected: Pipewire.defaultAudioSink === modelData
+            highlighted: cursor.currentIndex === index
             clickable: true
             shown: root.open
             revealIndex: index + 2

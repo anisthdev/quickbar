@@ -5,7 +5,7 @@ import "../components"
 
 // Android 16 style battery card: the level as a big number over a thick
 // progress bar, when it'll run out (or be full), and power mode as a
-// Material 3 Expressive connected button group.
+// Material 3 Expressive connected button group (h/l or 1-3 from the keys).
 Dropdown {
     id: root
 
@@ -34,6 +34,22 @@ Dropdown {
 
     menuWidth: 340
     title: "Battery"
+    // h/l step through the power modes, 1-3 pick one
+    keyHandler: event => {
+        const options = modes.options;
+        const at = options.findIndex(o => o.profile === PowerProfiles.profile);
+        let to = -1;
+        if (event.key === Qt.Key_H || event.key === Qt.Key_Left)
+            to = Math.max(0, at - 1);
+        else if (event.key === Qt.Key_L || event.key === Qt.Key_Right)
+            to = Math.min(options.length - 1, at + 1);
+        else if (event.key >= Qt.Key_1 && event.key < Qt.Key_1 + options.length)
+            to = event.key - Qt.Key_1;
+        if (to < 0)
+            return false;
+        PowerProfiles.profile = options[to].profile;
+        return true;
+    }
 
     // Level and bar
     Column {

@@ -23,8 +23,11 @@ Rectangle {
     property bool first: false
     property bool last: false
     property bool selected: false
-    // The keyboard's pick in a list you move through: drawn like hover
+    // The keyboard's pick in a list you move through: drawn like hover,
+    // plus a focus ring (Material's keyboard focus) unless `focusRing` is
+    // off, as in lists that always have one row picked
     property bool highlighted: false
+    property bool focusRing: true
     readonly property alias hovered: mouse.containsMouse
     property bool clickable: false
     property bool expanded: false
@@ -171,6 +174,19 @@ Rectangle {
         y: root.rowHeight
         width: parent.width
         height: childrenRect.height
+    }
+
+    // Focus ring
+    Rectangle {
+        anchors.fill: parent
+        visible: root.highlighted && root.focusRing
+        color: "transparent"
+        border.width: 2
+        border.color: root.selected ? Theme.on_primary_container : Theme.primary
+        topLeftRadius: root.topCorners
+        topRightRadius: root.topCorners
+        bottomLeftRadius: root.bottomCorners
+        bottomRightRadius: root.bottomCorners
     }
 
     MenuReveal {

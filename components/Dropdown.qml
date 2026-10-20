@@ -24,6 +24,14 @@ PopupWindow {
     // A large title over the content, as Android's quick settings dialogs have
     property string title
     default property alias content: column.data
+    // The menu's keys (vim style): a function taking the key event and
+    // saying whether it used it. q and Esc close the menu otherwise.
+    property var keyHandler: null
+
+    // Hand the keys back to the menu, e.g. when a text field in it closes
+    function takeKeys() {
+        panel.forceActiveFocus();
+    }
 
     // Room around the content; roomy by default, as for the quick settings
     // style menus, tighter where a compact menu suits better
@@ -179,7 +187,17 @@ PopupWindow {
         clip: true
         transformOrigin: Item.Top
         focus: root.open
-        Keys.onEscapePressed: root.open = false
+        // The menu's own keys first, then q or Esc to close
+        Keys.onPressed: event => {
+            if (root.keyHandler && root.keyHandler(event)) {
+                event.accepted = true;
+                return;
+            }
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
+                root.open = false;
+                event.accepted = true;
+            }
+        }
 
         // Swallow clicks on the panel's own background
         MouseArea {
