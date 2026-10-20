@@ -88,5 +88,6 @@ The control panel's sliders, `mic` and `mic_off`, quick note's `edit`
 and the clipboard's pin, `keep` (filled), are Material Symbols Rounded. (The power, screenshot and screen
 record menus use Papirus icons, as the control panel does.)
 
-The emoji picker's group icons (`schedule` and the `emoji_*` ones) are
+The emoji picker's group icons (`schedule` and the `emoji_*` ones) and the
+lock screen's `fingerprint` are
 Material Symbols Rounded.

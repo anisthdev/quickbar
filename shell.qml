@@ -71,6 +71,8 @@ ShellRoot {
 
     EmojiPicker {}
 
+    LockScreen {}
+
     ControlPanel {
         power: power
         capture: capture

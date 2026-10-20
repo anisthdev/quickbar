@@ -22,7 +22,8 @@ Scope {
             {
                 label: "Lock",
                 icon: "system-lock-screen",
-                command: ["sh", "-c", "pidof hyprlock || systemd-cat -t hyprlock hyprlock"]
+                // The lock screen (LockScreen)
+                command: ["qs", "-p", Quickshell.shellDir, "ipc", "call", "lock", "lock"]
             },
             {
                 label: "Suspend",

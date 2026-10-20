@@ -1,0 +1,3 @@
+# The lock screen's fingerprint unlock (modules/LockScreen.qml), run beside
+# the password's own stack (/etc/pam.d/login)
+auth required pam_fprintd.so max-tries=3 timeout=30
