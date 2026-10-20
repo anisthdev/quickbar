@@ -69,6 +69,8 @@ ShellRoot {
 
     GlyphPicker {}
 
+    EmojiPicker {}
+
     ControlPanel {
         power: power
         capture: capture
