@@ -66,6 +66,9 @@ Scope {
     // The field under the rows instead of over them, where it's for
     // writing rather than filtering (quick note)
     property bool fieldAtBottom: false
+    // A dialog: in the middle of a dimmed screen, solid (unblurred, so the
+    // dimming isn't blurred too); the polkit prompt
+    property bool modal: false
     // Off for a moment by replay(), so the rows reveal again
     property bool revealed: true
 
@@ -136,6 +139,11 @@ Scope {
             keys.forceActiveFocus();
     }
 
+    // Empties the field, e.g. for another try at a password
+    function clearField() {
+        field.text = "";
+    }
+
     function startFilter() {
         filtering = true;
         field.forceActiveFocus();
@@ -178,8 +186,9 @@ Scope {
         color: "transparent"
         // Mapped from opening until the fold-away has finished
         visible: false
-        // Blurred, without Hyprland's layer slide (see looknfeel.lua)
-        WlrLayershell.namespace: "quickbar-overlay"
+        // Blurred, without Hyprland's layer slide (see looknfeel.lua); a
+        // dialog without the blur
+        WlrLayershell.namespace: root.modal ? "quickbar-dialog" : "quickbar-overlay"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: root.open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
@@ -225,18 +234,27 @@ Scope {
             onClicked: root.hide()
         }
 
+        // A dialog's dimming
+        Rectangle {
+            anchors.fill: parent
+            visible: root.modal
+            color: "black"
+            opacity: 0.45 * Math.min(1, window.reveal)
+        }
+
         Rectangle {
             id: panel
 
             property real fullHeight: content.y + content.implicitHeight + (root.title !== "" ? 20 : 18)
 
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
+            anchors.bottom: root.modal ? undefined : parent.bottom
             anchors.bottomMargin: 16
+            anchors.verticalCenter: root.modal ? parent.verticalCenter : undefined
             width: root.panelWidth
             height: Math.max(0, fullHeight * window.reveal)
             radius: Theme.cardRadius
-            color: Theme.surface_container
+            color: root.modal ? Qt.rgba(Theme.surface_container.r, Theme.surface_container.g, Theme.surface_container.b, 1) : Theme.surface_container
             clip: true
 
             // Filtering shrinks and grows it

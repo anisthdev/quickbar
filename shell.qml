@@ -73,6 +73,8 @@ ShellRoot {
 
     LockScreen {}
 
+    Polkit {}
+
     ControlPanel {
         power: power
         capture: capture
