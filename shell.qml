@@ -67,6 +67,8 @@ ShellRoot {
 
     Clipboard {}
 
+    GlyphPicker {}
+
     ControlPanel {
         power: power
         capture: capture

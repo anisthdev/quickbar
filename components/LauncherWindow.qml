@@ -43,6 +43,7 @@ Scope {
     property var entries: []
     // Rows shown before the list scrolls; 0 shows them all
     property int maxRows: 0
+
     property bool bigCurrent: false
     property bool open: false
     // Typing into the filter
@@ -538,6 +539,8 @@ Scope {
                         animateHeight: false
                         image: {
                             const name = modelData.icon ?? "";
+                            if (name === "")
+                                return "";
                             return name.startsWith("/") ? `file://${name}` : Quickshell.iconPath(name, true);
                         }
                         imageSize: big ? 96 : 32

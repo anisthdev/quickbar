@@ -27,30 +27,14 @@ Scope {
     // [{ label, subtitle, icon?, text?, file?, … }]
     property var items: []
 
-    // Where a pick pastes: the window focused when the menu opened
-    property string target: ""
-    property bool targetIsTerminal: false
-
     function toggle() {
         if (menu.open) {
             menu.hide();
         } else {
-            target = HyprState.activeAddress;
-            targetIsTerminal = /ghostty|foot|kitty|alacritty|wezterm|term/i.test(HyprState.activeClass);
+            // Picks paste where the user was typing (see Paste)
+            Paste.capture();
             historyFile.reload();
             menu.show();
-        }
-    }
-
-    // Once the menu has gone and the clipboard holds the entry, the paste
-    // key goes to that window by address, so it can't land elsewhere
-    Timer {
-        id: paste
-
-        interval: 300
-        onTriggered: {
-            const mods = root.targetIsTerminal ? "CTRL SHIFT" : "CTRL";
-            Quickshell.execDetached(["hyprctl", "dispatch", `hl.dsp.send_shortcut({ mods = "${mods}", key = "V", window = "address:${root.target}" })`]);
         }
     }
 
@@ -154,14 +138,7 @@ Scope {
             root.togglePin(menu.currentEntry);
             return true;
         }
-        onActivated: item => {
-            if (item.file)
-                Quickshell.execDetached(["sh", "-c", 'wl-copy < "$1"', "copy", item.file]);
-            else
-                Quickshell.execDetached(["wl-copy", "--", item.text]);
-            if (!(menu.pickModifiers & Qt.ShiftModifier) && root.target !== "")
-                paste.restart();
-        }
+        onActivated: item => Paste.copy(item, !(menu.pickModifiers & Qt.ShiftModifier))
     }
 
     // `qs -p <dir> ipc call clipboard toggle`, e.g. from Super+V
