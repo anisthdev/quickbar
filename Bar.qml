@@ -21,12 +21,17 @@ PanelWindow {
     // Hyprland's blur layer rule matches on this name
     WlrLayershell.namespace: "quickbar"
 
+    // The app launcher, for the launcher button
+    required property var apps
+
     Row {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.gap
 
-        Launcher {}
+        Launcher {
+            apps: bar.apps
+        }
         Glance {}
         Workspaces {}
         PhoneLive {}

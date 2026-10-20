@@ -10,9 +10,14 @@ import ".."
 // Keyboard first, with vim keys: j/k (or the arrows, Tab) move, gg/G go to
 // the ends, Ctrl+d/Ctrl+u by half a page, Enter or l runs the pick
 // (`activated`), q or Esc closes. The filter field is there but not
-// focused: / (or a click) focuses it, typing filters, Enter runs, Esc goes
-// back to the list keeping the filter, and Esc there clears it. The mouse
-// works too.
+// focused: / or i (or a click) focuses it, typing filters, Enter runs, Esc
+// goes back to the list keeping the filter, and Esc there clears it. With
+// `startTyping` it opens in the field instead, for menus mostly used by
+// typing (the app launcher). The mouse works too.
+//
+// Matches rank by where the typed text falls: the start of the label,
+// then the start of a word in it, then anywhere in it, then an entry's
+// `keywords`. Ties keep the entries' own order.
 //
 // entries: [{ label, icon }, …] plus whatever the owner needs; icon is a
 // theme icon name or a path. Long lists scroll after `maxRows` rows, and
@@ -30,12 +35,32 @@ Scope {
     property bool open: false
     // Typing into the filter
     property bool filtering: false
+    property bool startTyping: false
+    property real panelWidth: 500
 
     signal activated(var entry)
 
     readonly property var shown: {
         const q = field.text.trim().toLowerCase();
-        return q === "" ? entries : entries.filter(e => e.label.toLowerCase().includes(q));
+        if (q === "")
+            return entries;
+        const rank = e => {
+            const label = e.label.toLowerCase();
+            if (label.startsWith(q))
+                return 0;
+            if (label.split(/[\s\-_.]+/).some(w => w.startsWith(q)))
+                return 1;
+            if (label.includes(q))
+                return 2;
+            if ((e.keywords ?? "").toLowerCase().includes(q))
+                return 3;
+            return -1;
+        };
+        return entries.map((e, i) => ({
+                    e,
+                    i,
+                    r: rank(e)
+                })).filter(m => m.r >= 0).sort((a, b) => a.r - b.r || a.i - b.i).map(m => m.e);
     }
 
     function show() {
@@ -43,7 +68,10 @@ Scope {
         filtering = false;
         list.currentIndex = 0;
         open = true;
-        keys.forceActiveFocus();
+        if (startTyping)
+            startFilter();
+        else
+            keys.forceActiveFocus();
     }
 
     function startFilter() {
@@ -137,12 +165,12 @@ Scope {
         Rectangle {
             id: panel
 
-            property real fullHeight: content.y + content.implicitHeight + 20
+            property real fullHeight: content.y + content.implicitHeight + (root.title !== "" ? 20 : 18)
 
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 16
-            width: 500
+            width: root.panelWidth
             height: Math.max(0, fullHeight * window.reveal)
             radius: Theme.cardRadius
             color: Theme.surface_container
@@ -191,6 +219,7 @@ Scope {
                         root.run(list.currentIndex);
                         break;
                     case Qt.Key_Slash:
+                    case Qt.Key_I:
                         root.startFilter();
                         break;
                     case Qt.Key_Escape:
@@ -214,12 +243,14 @@ Scope {
                 id: content
 
                 x: 20
-                y: 26
+                // Less room above without a title
+                y: root.title !== "" ? 26 : 18
                 width: parent.width - 40
                 spacing: 14
 
                 Label {
                     anchors.verticalCenter: undefined
+                    visible: root.title !== ""
                     leftPadding: 2
                     height: 34
                     verticalAlignment: Text.AlignVCenter
@@ -338,7 +369,20 @@ Scope {
                     highlightRangeMode: ListView.ApplyRange
                     preferredHighlightBegin: 0
                     preferredHighlightEnd: height
-                    highlightMoveDuration: 200
+                    // The pick's fill slides from row to row: it sits above
+                    // the rows' backgrounds (drawn on a layer of their own,
+                    // below) and under their icons and text
+                    highlightFollowsCurrentItem: true
+                    highlightMoveDuration: 220
+                    highlightMoveVelocity: -1
+                    highlightResizeDuration: Theme.animNormal
+                    highlightResizeVelocity: -1
+                    highlight: Rectangle {
+                        radius: Theme.radius
+                        color: Theme.secondary_container
+                        // Fades in with its row as the menu opens
+                        opacity: list.currentItem?.opacity ?? 1
+                    }
 
                     // The grouped list rows of the other menus
                     delegate: ListItem {
@@ -346,12 +390,16 @@ Scope {
 
                         required property var modelData
                         required property int index
-                        readonly property bool big: root.bigCurrent && ListView.isCurrentItem
+                        readonly property bool isCurrent: ListView.isCurrentItem
+                        readonly property bool big: root.bigCurrent && isCurrent
                         // A row starts at its size, and opening jumps to the first
                         // one; only moving the pick animates
                         property bool settled: false
 
-                        Component.onCompleted: Qt.callLater(() => settled = true)
+                        Component.onCompleted: Qt.callLater(() => {
+                            if (item)
+                                item.settled = true;
+                        })
 
                         width: list.width
                         rowHeight: big ? list.bigRowHeight : list.rowHeight
@@ -383,14 +431,30 @@ Scope {
                         first: index === 0
                         last: index === list.count - 1
                         clickable: true
-                        highlighted: ListView.isCurrentItem
-                        // One row is always picked here, as in rofi
-                        focusRing: false
+                        // The background is drawn below, under the sliding fill
+                        drawBackground: false
                         shown: root.open
                         revealIndex: Math.min(index, 8)
                         onClicked: root.run(index)
                         onHoveredChanged: if (hovered)
                             list.currentIndex = index
+
+                        // The row's background, moved under the list's
+                        // highlight; it follows the row, fading in with it
+                        Rectangle {
+                            parent: list.contentItem
+                            z: -1
+                            x: item.x
+                            y: item.y
+                            width: item.width
+                            height: item.height
+                            topLeftRadius: item.topCorners
+                            topRightRadius: item.topCorners
+                            bottomLeftRadius: item.bottomCorners
+                            bottomRightRadius: item.bottomCorners
+                            color: item.hovered && !item.isCurrent ? Theme.surface_container_highest : Theme.surface_container_high
+                            opacity: item.opacity
+                        }
                     }
                 }
 

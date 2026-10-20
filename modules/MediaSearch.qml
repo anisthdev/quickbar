@@ -544,7 +544,16 @@ Scope {
                     highlightRangeMode: ListView.ApplyRange
                     preferredHighlightBegin: 0
                     preferredHighlightEnd: height
-                    highlightMoveDuration: 150
+                    // The pick's fill slides from row to row, above the rows'
+                    // backgrounds and under their content
+                    highlightFollowsCurrentItem: true
+                    highlightMoveDuration: 220
+                    highlightMoveVelocity: -1
+                    highlight: Rectangle {
+                        radius: Theme.radius
+                        color: Theme.secondary_container
+                        opacity: list.currentItem?.opacity ?? 1
+                    }
 
                     delegate: Item {
                         id: row
@@ -558,19 +567,21 @@ Scope {
                         width: list.width
                         height: list.rowHeight
 
+                        // The row's background, on a layer under the list's
+                        // sliding highlight; it follows the row
                         Rectangle {
-                            anchors.fill: parent
+                            parent: list.contentItem
+                            z: -1
+                            x: row.x
+                            y: row.y
+                            width: row.width
+                            height: row.height
+                            opacity: row.opacity
                             topLeftRadius: row.first ? Theme.radius : 3
                             topRightRadius: row.first ? Theme.radius : 3
                             bottomLeftRadius: row.last ? Theme.radius : 3
                             bottomRightRadius: row.last ? Theme.radius : 3
-                            color: row.isCurrent ? Theme.surface_container_highest : Theme.surface_container_high
-
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: Theme.animFast
-                                }
-                            }
+                            color: Theme.surface_container_high
                         }
 
                         // Tracker, as a short code

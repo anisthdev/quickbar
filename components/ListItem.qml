@@ -28,6 +28,11 @@ Rectangle {
     // off, as in lists that always have one row picked
     property bool highlighted: false
     property bool focusRing: true
+    // The highlighted row's fill
+    property color highlightColor: Theme.surface_container_highest
+    // Off where the owner draws the row's background itself, e.g. under a
+    // sliding highlight (see LauncherWindow)
+    property bool drawBackground: true
     readonly property alias hovered: mouse.containsMouse
     property bool clickable: false
     property bool expanded: false
@@ -57,7 +62,7 @@ Rectangle {
     topRightRadius: topCorners
     bottomLeftRadius: bottomCorners
     bottomRightRadius: bottomCorners
-    color: selected ? Theme.primary_container : (highlighted || clickable && mouse.containsMouse) && !expanded ? Theme.surface_container_highest : Theme.surface_container_high
+    color: !drawBackground ? "transparent" : selected ? Theme.primary_container : highlighted && !expanded ? highlightColor : clickable && mouse.containsMouse && !expanded ? Theme.surface_container_highest : Theme.surface_container_high
 
     Behavior on height {
         enabled: root.animateHeight

@@ -12,6 +12,7 @@ ShellRoot {
         Bar {
             required property var modelData
             screen: modelData
+            apps: appLauncher
         }
     }
 
@@ -27,5 +28,9 @@ ShellRoot {
     Entertainment {
         search: mediaSearch
         games: games
+    }
+
+    AppLauncher {
+        id: appLauncher
     }
 }
