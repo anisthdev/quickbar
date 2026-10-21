@@ -3,13 +3,16 @@
 
   {"albums": [{dir, title, artist, year, added, seconds,
                cover, tracks: [{file, title, artist, track, seconds}]}, ...],
+   "playlists": [{name, seconds, covers: [up to 4],
+                  tracks: [{file, title, artist, seconds, cover, missing}]}, ...],
    "playing": DIR, "playing_file": FILE}
 
 An album is a folder (tunes files each album into its own, and an artist's
 songs without one into Singles), newest first. Covers are the folder's
 cover.jpg or a track's embedded picture, read through mpd once into
-~/.cache/quickbar/mpd-art. playing and playing_file are the folder and the
-file of the song mpd is on.
+~/.cache/quickbar/mpd-art. Playlists are mpd's own (its playlist_directory),
+by name; a track whose file has gone from the library is missing. playing
+and playing_file are the folder and the file of the song mpd is on.
 """
 import hashlib
 import json
@@ -92,8 +95,40 @@ def main():
             ],
         })
     albums.sort(key=lambda a: (-a["added"], a["artist"].lower(), a["title"].lower()))
+    covers = {a["dir"]: a["cover"] for a in albums}
+    known = {t["file"] for a in albums for t in a["tracks"]}
     playing = mpc("-f", "%file%", "current").strip()
-    print(json.dumps({"albums": albums, "playing": os.path.dirname(playing) if playing else "", "playing_file": playing}))
+    print(json.dumps({
+        "albums": albums,
+        "playlists": playlists(covers, known),
+        "playing": os.path.dirname(playing) if playing else "",
+        "playing_file": playing,
+    }))
+
+
+def playlists(covers, known):
+    result = []
+    for name in sorted(mpc("lsplaylists").splitlines(), key=str.lower):
+        tracks = []
+        for line in mpc("-f", "%file%\t%title%\t%artist%\t%time%", "playlist", name).splitlines():
+            values = line.split("\t")
+            if len(values) != 4:
+                continue
+            file, title, artist, length = values
+            missing = file not in known
+            tracks.append({
+                "file": file, "title": title or os.path.splitext(os.path.basename(file))[0], "artist": artist,
+                "seconds": seconds(length), "cover": "" if missing else covers.get(os.path.dirname(file), ""),
+                "missing": missing,
+            })
+        distinct = list(dict.fromkeys(t["cover"] for t in tracks if t["cover"]))
+        result.append({
+            "name": name,
+            "seconds": sum(t["seconds"] for t in tracks),
+            "covers": distinct[:4],
+            "tracks": tracks,
+        })
+    return result
 
 
 if __name__ == "__main__":
