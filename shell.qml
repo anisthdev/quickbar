@@ -71,6 +71,8 @@ ShellRoot {
         id: capture
     }
 
+    RegionSelector {}
+
     WallpaperPicker {
         id: wallpaper
     }

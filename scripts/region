@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# quickbar's region selector (modules/RegionSelector.qml): the screen frozen
+# while a region is picked, then what's done with that region.
+#   region freeze OUTPUT FILE          the output as it is now, into FILE
+#   region ACTION FILE GEOMETRY        GEOMETRY ("WxH+X+Y", in the file's
+#                                      pixels) of FILE, then ACTION:
+#     copy       saved to ~/Pictures and copied, with the shutter sound and
+#                the screenshot notification (scripts/capture-notify)
+#     edit       saved, then opened in satty
+#     text       its text (tesseract) copied, in a notification offering
+#                Translate and Add to notes
+#     translate  its text in Google Translate, in the browser
+#     lens       searched with Google Lens, in the browser (the picture is
+#                uploaded to Google)
+set -euo pipefail
+
+here="$(dirname "$(realpath "$0")")"
+pictures="$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Pictures")"
+lang="${OCR_LANG:-eng}"
+# Translate into
+target="${TRANSLATE_TO:-en}"
+
+notify() {
+    notify-send -a "Region" -n gnome-screenshot "$@"
+}
+
+crop() {
+    magick "$1" -crop "$2" +repage "$3"
+}
+
+ocr() {
+    # Automatic page layout: a region is rarely one tidy block of text
+    tesseract "$1" stdout -l "$lang" --psm 3 2>/dev/null | sed '/^[[:space:]]*$/d'
+}
+
+translate_url() {
+    printf 'https://translate.google.com/?sl=auto&tl=%s&op=translate&text=%s' "$target" "$(jq -rn --arg t "$1" '$t | @uri')"
+}
+
+open_url() {
+    setsid -f uwsm app -- xdg-open "$1" >/dev/null 2>&1
+}
+
+# The text, with what to do with it next; waits for the pick, so it runs
+# on its own
+offer_text() {
+    local text="$1"
+    case "$(notify -A translate=Translate -A note="Add to notes" "Text copied" "$text")" in
+    translate) open_url "$(translate_url "$text")" ;;
+    note) "$here/quick-note" "$(printf '%s' "$text" | tr '\n' ' ')" ;;
+    esac
+}
+
+action="${1:-}"
+case "$action" in
+freeze)
+    grim -o "$2" "$3"
+    exit
+    ;;
+copy | edit | text | translate | lens) ;;
+*)
+    echo "usage: region freeze OUTPUT FILE | region copy|edit|text|translate|lens FILE GEOMETRY" >&2
+    exit 2
+    ;;
+esac
+
+frozen="$2"
+geometry="$3"
+
+case "$action" in
+copy | edit)
+    file="$pictures/$(date +%Y-%m-%d-%H%M%S)_region.png"
+    mkdir -p "$pictures"
+    crop "$frozen" "$geometry" "$file"
+    wl-copy --type image/png <"$file"
+    if [[ $action == edit ]]; then
+        exec uwsm app -- satty --filename "$file" --output-filename "$file" --copy-command wl-copy
+    fi
+    pw-play ~/.local/share/sounds/macos/camera-shutter.ogg &
+    setsid -f "$here/capture-notify" screenshot "$file" >/dev/null 2>&1
+    ;;
+text | translate | lens)
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    crop "$frozen" "$geometry" "$tmp/region.png"
+    if [[ $action == lens ]]; then
+        # Lens answers an upload with where its results are
+        url="$(curl -sS -o /dev/null -w '%{redirect_url}' --max-time 30 \
+            -F "encoded_image=@$tmp/region.png" "https://lens.google.com/v3/upload?hl=en")" || url=""
+        if [[ -z $url ]]; then
+            notify "Google Lens didn't answer" "Couldn't upload the region"
+            exit 1
+        fi
+        open_url "$url"
+        exit
+    fi
+    text="$(ocr "$tmp/region.png")"
+    if [[ -z $text ]]; then
+        notify -t 3000 "No text found" "Nothing readable in the region"
+        exit
+    fi
+    if [[ $action == translate ]]; then
+        open_url "$(translate_url "$text")"
+    else
+        printf '%s\n' "$text" | wl-copy
+        offer_text "$text"
+    fi
+    ;;
+esac
