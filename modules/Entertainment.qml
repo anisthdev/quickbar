@@ -3,10 +3,10 @@ import Quickshell.Io
 import QtQuick
 import "../components"
 
-// The entertainment menu: Library opens the video library (Reel), Play URL
-// and the Jackett searches open quickbar's own search window, RetroArch NES
-// its game list. Hindi
-// films aren't listed: `ipc call search open hindi` opens that search.
+// The entertainment menu: Library opens the video library (Reel); Play
+// URL, the Jackett searches and Music (YouTube Music, through tunes) open
+// quickbar's own search window; RetroArch NES its game list. Hindi films
+// aren't listed: `ipc call search open hindi` opens that search.
 Scope {
     id: root
 
@@ -38,6 +38,11 @@ Scope {
                 label: "Anime",
                 icon: "crunchyroll",
                 search: "anime"
+            },
+            {
+                label: "Music",
+                icon: "appimagekit-youtube-music",
+                search: "music"
             },
             {
                 label: "Ebooks",

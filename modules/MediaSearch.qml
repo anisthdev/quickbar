@@ -7,9 +7,11 @@ import "../components"
 
 // Search Jackett for movies, anime, Hindi films or ebooks (whichever the
 // caller opened it for, named in the title), then download the pick with
-// Transmission or stream it with peerflix. Opened for "play", it plays a
-// pasted URL or magnet link instead, starting from a link on the clipboard. The Jackett side is
-// scripts/media-search; this is the window.
+// Transmission or stream it with peerflix. Opened for "music", it searches
+// YouTube Music through tunes (~/Projects/tunes) instead: albums and songs,
+// downloaded by quickbar's runner and filed into mpd's library. Opened for
+// "play", it plays a pasted URL or magnet link, starting from a link on the
+// clipboard. The Jackett side is scripts/media-search; this is the window.
 //
 // It opens at the bottom centre at the rofi menu's size, widening and
 // growing only once there are results.
@@ -17,13 +19,17 @@ import "../components"
 // Keyboard first, vim style. It opens typing (the field outlined): Enter
 // searches. Results take the keys from the field: j/k (or the arrows),
 // gg/G, Ctrl+d/Ctrl+u move, Enter or l downloads, s streams, / or i go back
-// to the query, q or Esc closes. Esc while typing goes back to the results,
+// to the query, q or Esc closes. For music, l (or o) opens an album's
+// tracks instead, Enter still downloading all of it; a single has none to
+// open. There Space marks some, Enter or l downloads the marked ones (or
+// the one at the cursor), h or Esc goes back to the albums. Esc while typing goes back to the results,
 // or closes when there are none. A search runs for as long as Jackett takes (often half a
 // minute), with a travelling wave below the field meanwhile.
 Scope {
     id: root
 
-    readonly property string search: Quickshell.shellDir + "/scripts/media-search"
+    readonly property string searchScript: Quickshell.shellDir + "/scripts/media-search"
+    readonly property string tunes: Quickshell.env("HOME") + "/Projects/tunes/tunes"
     readonly property var kinds: [
         {
             id: "movies",
@@ -45,6 +51,12 @@ Scope {
             label: "Books",
             noun: "ebooks"
         },
+        {
+            id: "music",
+            label: "Music",
+            noun: "music",
+            music: true
+        },
         // Not a search: play what's pasted, as play-video does
         {
             id: "play",
@@ -65,6 +77,14 @@ Scope {
     property string searched
     property var results: []
     property var job: null
+    // Music: the album whose tracks are on show, its tracks, and the marked
+    // ones (track number → true)
+    property var album: null
+    property int albumIndex: 0
+    property var tracks: []
+    property var marked: ({})
+    property var tracksJob: null
+    readonly property int markedCount: Object.keys(marked).length
 
     function show(id) {
         const i = kinds.findIndex(k => k.id === id);
@@ -115,6 +135,7 @@ Scope {
     function reset() {
         job?.cancel();
         job = null;
+        closeAlbum();
         results = [];
         searched = "";
         phase = "idle";
@@ -125,14 +146,77 @@ Scope {
         if (query === "")
             return;
         job?.cancel();
+        closeAlbum();
         searched = query;
         phase = "searching";
         job = jobComponent.createObject(root, {
-            command: [root.search, current.id, "--json", query]
+            command: current.music ? [root.tunes, "search", "--json", query] : [root.searchScript, current.id, "--json", query]
         });
     }
 
+    // An album with tracks to pick from: not a song, nor a single
+    function hasTracks(r) {
+        return r?.type === "album" && r.kind !== "Single";
+    }
+
+    // An album's tracks in place of the results, to pick some
+    function openAlbum(index) {
+        const r = results[index];
+        if (!current.music || album || !hasTracks(r))
+            return;
+        tracksJob?.cancel();
+        albumIndex = index;
+        tracksJob = jobComponent.createObject(root, {
+            command: [root.tunes, "tracks", "--json", r.id],
+            album: r
+        });
+    }
+
+    function closeAlbum() {
+        tracksJob?.cancel();
+        tracksJob = null;
+        if (!album)
+            return;
+        album = null;
+        tracks = [];
+        marked = {};
+        list.currentIndex = albumIndex;
+    }
+
+    function mark(index) {
+        const t = tracks[index];
+        if (!t?.available)
+            return;
+        const next = Object.assign({}, marked);
+        if (next[t.n])
+            delete next[t.n];
+        else
+            next[t.n] = true;
+        marked = next;
+    }
+
+    function tracksFinished(which, code, out) {
+        if (which !== tracksJob)
+            return;
+        tracksJob = null;
+        let plan;
+        try {
+            plan = code === 0 ? JSON.parse(out) : null;
+        } catch (e) {}
+        if (!plan) {
+            phase = "error";
+            message = "Couldn't read the album";
+            return;
+        }
+        marked = {};
+        tracks = plan.tracks;
+        album = which.album;
+        list.currentIndex = 0;
+    }
+
     function finished(which, code, out, err) {
+        if (which === tracksJob)
+            return tracksFinished(which, code, out);
         if (which !== job)
             return;
         job = null;
@@ -157,15 +241,45 @@ Scope {
 
     // Download, or stream, the result at index
     function act(index, stream) {
+        if (current.music)
+            return actMusic(index, stream);
         const r = results[index];
         if (!r)
             return;
         // Quietly: the bar's downloads ring is the confirmation (a failure
         // still notifies)
-        Quickshell.execDetached([root.search, current.id, stream ? "--stream" : "--add", r.magnet_uri, r.title]);
+        Quickshell.execDetached([root.searchScript, current.id, stream ? "--stream" : "--add", r.magnet_uri, r.title]);
         // Have it show there as soon as Transmission has it
         if (!stream)
-            Transmission.expect();
+            DownloadState.expect("transmission");
+        hide();
+    }
+
+    // An album, a song, or the marked tracks (else the one at index) of the
+    // album open, handed to tunes, which has the runner download it; or
+    // played in mpv
+    function actMusic(index, stream) {
+        let command, url;
+        if (album) {
+            const picked = markedCount > 0 ? tracks.filter(t => marked[t.n]) : [tracks[index]].filter(t => t?.available);
+            if (picked.length === 0)
+                return;
+            url = `https://music.youtube.com/watch?v=${picked[0].videoId}`;
+            command = [root.tunes, "get", album.id, "--tracks", picked.map(t => t.n).join(",")];
+        } else {
+            const r = results[index];
+            if (!r)
+                return;
+            url = r.type === "album" ? `https://music.youtube.com/browse/${r.id}` : `https://music.youtube.com/watch?v=${r.id}`;
+            command = r.type === "album" ? [root.tunes, "get", r.id] : [root.tunes, "get", "--song", r.id, ...(r.album_id ? ["--album", r.album_id] : [])];
+        }
+        if (stream) {
+            Quickshell.execDetached(["mpv", "--force-window=immediate", "--", url]);
+        } else {
+            // The bar's downloads ring is the confirmation, as for torrents
+            Quickshell.execDetached(command);
+            DownloadState.expect("runner");
+        }
         hide();
     }
 
@@ -205,6 +319,8 @@ Scope {
             property string err
             property int code: -1
             property int pending: 3
+            // The album, when it's reading an album's tracks
+            property var album: null
 
             function cancel() {
                 running = false;
@@ -363,11 +479,28 @@ Scope {
                     switch (event.key) {
                     case Qt.Key_Return:
                     case Qt.Key_Enter:
-                    case Qt.Key_L:
                         root.act(list.currentIndex, false);
+                        break;
+                    // Into an album's tracks; anywhere else, download
+                    case Qt.Key_L:
+                        if (root.current.music && !root.album)
+                            root.openAlbum(list.currentIndex);
+                        else
+                            root.act(list.currentIndex, false);
                         break;
                     case Qt.Key_S:
                         root.act(list.currentIndex, true);
+                        break;
+                    case Qt.Key_O:
+                        root.openAlbum(list.currentIndex);
+                        break;
+                    case Qt.Key_Space:
+                        if (root.album)
+                            root.mark(list.currentIndex);
+                        break;
+                    case Qt.Key_H:
+                    case Qt.Key_Backspace:
+                        root.closeAlbum();
                         break;
                     case Qt.Key_Slash:
                         root.type(true);
@@ -375,8 +508,13 @@ Scope {
                     case Qt.Key_I:
                         root.type(true, false);
                         break;
-                    case Qt.Key_Q:
                     case Qt.Key_Escape:
+                        if (root.album)
+                            root.closeAlbum();
+                        else
+                            root.hide();
+                        break;
+                    case Qt.Key_Q:
                         root.hide();
                         break;
                     default:
@@ -406,6 +544,10 @@ Scope {
                         anchors.left: parent.left
                         anchors.leftMargin: 2
                         text: {
+                            if (root.tracksJob)
+                                return `Opening ${root.tracksJob.album.title}…`;
+                            if (root.album)
+                                return root.markedCount > 0 ? `${root.album.title} · ${root.markedCount} marked` : root.album.title;
                             switch (root.phase) {
                             case "searching":
                                 return `Searching ${root.current.noun}…`;
@@ -534,7 +676,7 @@ Scope {
                     height: shownRows * rowHeight + Math.max(0, shownRows - 1) * spacing
                     spacing: 2
                     clip: true
-                    model: root.phase === "done" ? root.results : []
+                    model: root.phase !== "done" ? [] : root.album ? root.tracks : root.results
                     boundsBehavior: Flickable.StopAtBounds
                     // Keep the current row in view as the keys move it
                     highlightRangeMode: ListView.ApplyRange
@@ -556,6 +698,11 @@ Scope {
 
                         required property var modelData
                         required property int index
+                        // A torrent, a music result (album or song), or a
+                        // track of the album open
+                        readonly property bool torrent: modelData.magnet_uri !== undefined
+                        readonly property bool track: root.album !== null && !torrent
+                        readonly property bool marked: track && (root.marked[modelData.n] ?? false)
                         readonly property bool isCurrent: ListView.isCurrentItem
                         readonly property bool first: index === 0
                         readonly property bool last: index === list.count - 1
@@ -580,7 +727,8 @@ Scope {
                             color: Theme.surface_container_high
                         }
 
-                        // Tracker, as a short code
+                        // Tracker, as a short code; a track's number, filled
+                        // once marked
                         Rectangle {
                             id: badge
 
@@ -590,22 +738,41 @@ Scope {
                             width: 44
                             height: 40
                             radius: 8
-                            color: Theme.primary_container
+                            visible: row.torrent || row.track
+                            color: row.marked ? Theme.primary : Theme.primary_container
 
                             Text {
                                 anchors.centerIn: parent
-                                text: row.modelData.tracker
+                                visible: !row.marked
+                                text: row.torrent ? row.modelData.tracker : row.track ? row.modelData.n : ""
                                 color: Theme.on_primary_container
                                 font.family: Theme.monoFamily
                                 font.pixelSize: 12
                                 font.weight: Font.Bold
                             }
+
+                            Icon {
+                                anchors.centerIn: parent
+                                visible: row.marked
+                                name: "check"
+                                size: 18
+                                color: Theme.on_primary
+                            }
+                        }
+
+                        // An album's or a song's cover, in the badge's place
+                        AlbumArt {
+                            anchors.horizontalCenter: badge.horizontalCenter
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !row.torrent && !row.track
+                            size: 44
+                            source: visible ? row.modelData.cover ?? "" : ""
                         }
 
                         Column {
                             anchors.left: badge.right
                             anchors.leftMargin: 14
-                            anchors.right: stats.left
+                            anchors.right: row.torrent ? stats.left : actions.left
                             anchors.rightMargin: 16
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 2
@@ -614,7 +781,7 @@ Scope {
                                 anchors.verticalCenter: undefined
                                 width: parent.width
                                 text: row.modelData.title
-                                color: Theme.on_surface
+                                color: row.track && !row.modelData.available ? Theme.on_surface_variant : Theme.on_surface
                                 font.pixelSize: 15
                                 elide: Text.ElideRight
                             }
@@ -622,7 +789,16 @@ Scope {
                             Label {
                                 anchors.verticalCenter: undefined
                                 width: parent.width
-                                text: `${root.size(row.modelData.size_bytes)} · ${row.modelData.indexer}`
+                                text: {
+                                    const r = row.modelData;
+                                    if (row.torrent)
+                                        return `${root.size(r.size_bytes)} · ${r.indexer}`;
+                                    if (row.track)
+                                        return [r.artist, r.duration, r.available ? "" : "Unavailable"].filter(s => s).join(" · ");
+                                    if (r.type === "album")
+                                        return [r.kind, r.artist, r.year].filter(s => s).join(" · ");
+                                    return ["Song", r.artist, r.album, r.duration].filter(s => s).join(" · ");
+                                }
                                 color: Theme.on_surface_variant
                                 font.pixelSize: 13
                                 font.weight: Font.Normal
@@ -635,6 +811,7 @@ Scope {
                         Row {
                             id: stats
 
+                            visible: row.torrent
                             anchors.right: actions.left
                             anchors.rightMargin: 8
                             anchors.verticalCenter: parent.verticalCenter
@@ -652,7 +829,7 @@ Scope {
 
                                 Text {
                                     width: 40
-                                    text: row.modelData.seeders
+                                    text: row.modelData.seeders ?? ""
                                     color: Theme.on_surface
                                     font.family: Theme.monoFamily
                                     font.pixelSize: 13
@@ -672,7 +849,7 @@ Scope {
 
                                 Text {
                                     width: 40
-                                    text: row.modelData.leechers
+                                    text: row.modelData.leechers ?? ""
                                     color: Theme.on_surface_variant
                                     font.family: Theme.monoFamily
                                     font.pixelSize: 13
@@ -713,6 +890,33 @@ Scope {
                                 color: Theme.primary
                                 onClicked: root.act(row.index, false)
                             }
+
+                            // An album's tracks, to pick some, spinning while
+                            // they load
+                            Item {
+                                visible: !row.torrent && !row.track && root.hasTracks(row.modelData)
+                                width: 40
+                                height: 40
+
+                                IconButton {
+                                    anchors.fill: parent
+                                    visible: !opening.visible
+                                    icon: "keyboard_arrow_right"
+                                    iconSize: 20
+                                    color: Theme.on_surface_variant
+                                    onClicked: root.openAlbum(row.index)
+                                }
+
+                                CircularProgress {
+                                    id: opening
+
+                                    anchors.centerIn: parent
+                                    visible: root.tracksJob !== null && root.albumIndex === row.index
+                                    indeterminate: true
+                                    size: 20
+                                    thickness: 2.5
+                                }
+                            }
                         }
 
                         MouseArea {
@@ -723,7 +927,9 @@ Scope {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onEntered: list.currentIndex = row.index
-                            onClicked: root.act(row.index, false)
+                            // A track is marked by a click, anything else
+                            // downloads
+                            onClicked: row.track ? root.mark(row.index) : root.act(row.index, false)
                         }
 
                         MenuReveal {
@@ -737,7 +943,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call search open movies` (or anime, hindi, books, play)
+    // `qs -p <dir> ipc call search open movies` (or anime, hindi, books, music, play)
     IpcHandler {
         target: "search"
 
