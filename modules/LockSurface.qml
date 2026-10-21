@@ -5,7 +5,7 @@ import QtQuick
 import QtQuick.Effects
 import ".."
 import "../components"
-import "LockShapes.js" as LockShapes
+import "../components/MaterialShapes.js" as MaterialShapes
 
 // One screen of the lock screen (see LockScreen), after end-4's: the
 // wallpaper blurred and dimmed, the large stacked clock with the date at
@@ -24,6 +24,10 @@ Item {
     readonly property var battery: UPower.displayDevice
     readonly property bool charging: battery?.state === UPowerDeviceState.Charging || battery?.state === UPowerDeviceState.FullyCharged
     readonly property bool ctrlHeld: held.ctrl
+
+    // The password's characters, one shape each, round and round, as on
+    // end-4's
+    readonly property var charShapes: ["Clover4Leaf", "Arrow", "Pill", "SoftBurst", "Diamond", "ClamShell", "Pentagon"]
 
     // The field's shake, an offset in pixels
     property real shakeX: 0
@@ -361,7 +365,7 @@ Item {
 
                             GlyphShape {
                                 // -1 while it goes
-                                d: LockShapes.shapes[Math.max(0, cell.index) % LockShapes.shapes.length]
+                                d: MaterialShapes.shapes[root.charShapes[Math.max(0, cell.index) % root.charShapes.length]]
                                 unit: 18 / 100
                                 fill: Theme.primary
 
