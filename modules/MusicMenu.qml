@@ -12,14 +12,19 @@ import "../components"
 // covers across the middle of the screen, each with its title and artist,
 // the one mpd is playing marked. Picking plays the album through mpd from
 // its first track, and the menu closes; the bar's now playing chip takes
-// over. What tunes downloads lands here.
+// over. Its tracks open below the covers, to play from one in particular.
+// What tunes downloads lands here.
 //
 // Keys: h/l (or j/k, the arrows) move, gg/G go to the first and last,
-// Enter or Space plays, a adds the album to mpd's queue (the menu stays),
-// q or Esc closes. / or i (or a click) focuses the filter: typing filters by
-// title and artist, Enter plays, Esc goes back to the covers keeping the
-// filter, and Esc there clears it. The mouse wheel moves; a click picks, a
-// click on the pick plays.
+// Enter or Space plays, a adds the album to mpd's queue (the menu stays), o
+// opens its tracks, q or Esc closes. In the tracks j/k (gg/G, Ctrl+d/u)
+// move, Enter, Space or l plays the album from that track, a queues the
+// track alone, h, o or Esc go back to the covers. / or i (or a click)
+// focuses the filter: typing filters by album title, artist or track
+// title, Enter plays (from the track that matched, when it was a track),
+// Esc goes back to the covers keeping the filter, and Esc there clears it.
+// The mouse wheel moves; a click picks, a click on the pick plays, a right
+// click opens its tracks.
 Scope {
     id: root
 
@@ -34,13 +39,20 @@ Scope {
     property var library: null
     // What the right of the header says for a moment, e.g. "Queued"
     property string flash
+    // The current album's tracks, open below the covers
+    property bool tracksOpen: false
     // The albums matching the filter, ranked as the launcher menus do: the
-    // start of the title or artist, then the start of a word, then anywhere
-    readonly property var items: {
+    // start of the title or artist, then the start of a word, then
+    // anywhere; then the albums with a track whose title has it. Each with
+    // that track's index, when it matched by a track.
+    readonly property var matches: {
         const all = library?.albums ?? [];
         const q = field.text.trim().toLowerCase();
         if (q === "")
-            return all;
+            return all.map(album => ({
+                        album,
+                        hit: -1
+                    }));
         const rank = album => {
             const text = `${album.title} ${album.artist}`.toLowerCase();
             if (album.title.toLowerCase().startsWith(q) || album.artist.toLowerCase().startsWith(q))
@@ -49,18 +61,27 @@ Scope {
                 return 1;
             return text.includes(q) ? 2 : -1;
         };
-        return all.map((album, i) => ({
-                    album,
-                    i,
-                    r: rank(album)
-                })).filter(m => m.r >= 0).sort((a, b) => a.r - b.r || a.i - b.i).map(m => m.album);
+        return all.map((album, i) => {
+            const r = rank(album);
+            const hit = r < 0 ? album.tracks.findIndex(t => t.title.toLowerCase().includes(q)) : -1;
+            return {
+                album,
+                i,
+                hit,
+                r: r >= 0 ? r : hit >= 0 ? 3 : -1
+            };
+        }).filter(m => m.r >= 0).sort((a, b) => a.r - b.r || a.i - b.i);
     }
+    readonly property var items: matches.map(m => m.album)
     readonly property var current: items[strip.currentIndex] ?? null
+    // The track of the current album the filter found, or -1
+    readonly property int currentHit: matches[strip.currentIndex]?.hit ?? -1
 
     function show() {
         reader.running = true;
         field.text = "";
         flash = "";
+        tracksOpen = false;
         strip.currentIndex = 0;
         open = true;
         stopFilter();
@@ -90,12 +111,19 @@ Scope {
         return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
     }
 
-    // The album, in place of mpd's queue, from its first track
+    // The album, in place of mpd's queue, from its first track, or from
+    // the track the filter found
     function play(index) {
+        playFrom(index, matches[index]?.hit ?? -1);
+    }
+
+    // The album, in place of mpd's queue, from the track at track (its
+    // first, if none), in the menu's order
+    function playFrom(index, track) {
         const album = items[index];
         if (!album)
             return;
-        Quickshell.execDetached(["sh", "-c", 'mpc -q clear && mpc -q add "$1" && mpc -q play', "sh", album.dir]);
+        Quickshell.execDetached(["sh", "-c", 'n=$1; shift; mpc -q clear && mpc -q add "$@" && mpc -q play "$n"', "sh", String(Math.max(0, track) + 1), ...album.tracks.map(t => t.file)]);
         hide();
     }
 
@@ -104,9 +132,36 @@ Scope {
         const album = items[index];
         if (!album)
             return;
-        Quickshell.execDetached(["mpc", "-q", "add", album.dir]);
-        flash = `Queued ${album.title}`;
+        Quickshell.execDetached(["mpc", "-q", "add", ...album.tracks.map(t => t.file)]);
+        queued(album.title);
+    }
+
+    // One track of the current album after what's queued
+    function enqueueTrack(track) {
+        const t = current?.tracks[track];
+        if (!t)
+            return;
+        Quickshell.execDetached(["mpc", "-q", "add", t.file]);
+        queued(t.title);
+    }
+
+    function queued(title) {
+        flash = `Queued ${title}`;
         flashTimer.restart();
+    }
+
+    // The current album's tracks, at the one the filter found
+    function openTracks() {
+        if (!current)
+            return;
+        tracksOpen = true;
+        tracks.currentIndex = Math.max(0, currentHit);
+        tracks.positionViewAtIndex(tracks.currentIndex, ListView.Contain);
+    }
+
+    // "3:05"
+    function clock(seconds) {
+        return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
     }
 
     Process {
@@ -199,7 +254,17 @@ Scope {
         Rectangle {
             id: panel
 
-            readonly property real fullHeight: strip.y + strip.height + 20
+            // The tracks' room, opening and closing with them
+            property real tracksHeight: root.tracksOpen ? tracks.height + 14 : 0
+            readonly property real fullHeight: strip.y + strip.height + 20 + tracksHeight
+
+            Behavior on tracksHeight {
+                NumberAnimation {
+                    duration: 300
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Theme.emphasizedDecel
+                }
+            }
 
             // Edge to edge across the middle of the screen, square; it
             // opens out from its centre line
@@ -228,10 +293,17 @@ Scope {
                 }
 
                 Keys.onPressed: event => {
+                    if (root.tracksOpen) {
+                        event.accepted = trackKey(event);
+                        return;
+                    }
                     const g = event.key === Qt.Key_G && event.text === "g";
                     if (!g)
                         pendingG = false;
                     switch (event.key) {
+                    case Qt.Key_O:
+                        root.openTracks();
+                        break;
                     case Qt.Key_H:
                     case Qt.Key_K:
                     case Qt.Key_Left:
@@ -283,6 +355,45 @@ Scope {
                     }
                     event.accepted = true;
                 }
+
+                // The keys while the tracks are open
+                function trackKey(event) {
+                    if (trackKeys.handle(event))
+                        return true;
+                    switch (event.key) {
+                    case Qt.Key_Return:
+                    case Qt.Key_Enter:
+                    case Qt.Key_Space:
+                    case Qt.Key_L:
+                        root.playFrom(strip.currentIndex, tracks.currentIndex);
+                        break;
+                    case Qt.Key_A:
+                        root.enqueueTrack(tracks.currentIndex);
+                        break;
+                    case Qt.Key_H:
+                    case Qt.Key_O:
+                    case Qt.Key_Escape:
+                        root.tracksOpen = false;
+                        break;
+                    case Qt.Key_Slash:
+                    case Qt.Key_I:
+                        root.tracksOpen = false;
+                        root.startFilter();
+                        break;
+                    case Qt.Key_Q:
+                        root.hide();
+                        break;
+                    default:
+                        return false;
+                    }
+                    return true;
+                }
+            }
+
+            ListKeys {
+                id: trackKeys
+
+                list: tracks
             }
 
             // The title and the filter
@@ -346,6 +457,7 @@ Scope {
                         font.weight: Font.Medium
                         clip: true
                         onTextChanged: {
+                            root.tracksOpen = false;
                             strip.currentIndex = 0;
                             strip.positionViewAtBeginning();
                         }
@@ -593,10 +705,13 @@ Scope {
                             font.weight: Theme.titleWeight
                         }
 
+                        // The artist, or the track the filter found
                         Label {
+                            readonly property int hit: root.matches[card.index]?.hit ?? -1
+
                             anchors.verticalCenter: undefined
                             width: parent.width
-                            text: card.album.artist
+                            text: hit >= 0 ? `♪ ${card.album.tracks[hit].title}` : card.album.artist
                             elide: Text.ElideRight
                             color: card.isCurrent ? Theme.primary : Theme.on_surface_variant
                             font.pixelSize: 14
@@ -606,7 +721,141 @@ Scope {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: card.isCurrent ? root.play(card.index) : strip.currentIndex = card.index
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: event => {
+                            if (event.button === Qt.RightButton) {
+                                strip.currentIndex = card.index;
+                                root.openTracks();
+                            } else if (card.isCurrent) {
+                                root.play(card.index);
+                            } else {
+                                strip.currentIndex = card.index;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // The current album's tracks, while open
+            ListView {
+                id: tracks
+
+                readonly property real rowHeight: 44
+                readonly property int shownRows: Math.min(count, 8)
+
+                x: 32
+                y: strip.y + strip.height + 14
+                width: parent.width - 64
+                height: shownRows * rowHeight + Math.max(0, shownRows - 1) * spacing
+                visible: root.tracksOpen || panel.tracksHeight > 0
+                opacity: root.tracksOpen ? 1 : 0
+                spacing: 2
+                clip: true
+                model: root.current?.tracks ?? []
+                boundsBehavior: Flickable.StopAtBounds
+                highlightRangeMode: ListView.ApplyRange
+                preferredHighlightBegin: 0
+                preferredHighlightEnd: height
+                highlightFollowsCurrentItem: true
+                highlightMoveDuration: 180
+                highlightMoveVelocity: -1
+                highlight: Rectangle {
+                    radius: Theme.radius
+                    color: Theme.secondary_container
+                }
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Theme.animFast
+                    }
+                }
+
+                delegate: Item {
+                    id: trackRow
+
+                    required property var modelData
+                    required property int index
+                    readonly property bool isCurrent: ListView.isCurrentItem
+                    readonly property bool playing: root.library?.playing_file === modelData.file
+                    readonly property bool first: index === 0
+                    readonly property bool last: index === tracks.count - 1
+
+                    width: tracks.width
+                    height: tracks.rowHeight
+
+                    // The row's background, under the sliding highlight
+                    Rectangle {
+                        parent: tracks.contentItem
+                        z: -1
+                        x: trackRow.x
+                        y: trackRow.y
+                        width: trackRow.width
+                        height: trackRow.height
+                        topLeftRadius: trackRow.first ? Theme.radius : 3
+                        topRightRadius: trackRow.first ? Theme.radius : 3
+                        bottomLeftRadius: trackRow.last ? Theme.radius : 3
+                        bottomRightRadius: trackRow.last ? Theme.radius : 3
+                        color: Theme.surface_container_high
+                    }
+
+                    // The number, or the equalizer on the one playing
+                    Item {
+                        id: number
+
+                        x: 12
+                        width: 28
+                        height: parent.height
+
+                        Text {
+                            anchors.centerIn: parent
+                            visible: !trackRow.playing
+                            text: trackRow.modelData.track || trackRow.index + 1
+                            color: Theme.on_surface_variant
+                            font.family: Theme.monoFamily
+                            font.pixelSize: 13
+                            font.weight: Font.Bold
+                        }
+
+                        Equalizer {
+                            anchors.centerIn: parent
+                            visible: trackRow.playing
+                            playing: true
+                            color: Theme.primary
+                        }
+                    }
+
+                    Label {
+                        anchors.left: number.right
+                        anchors.leftMargin: 12
+                        anchors.right: length.left
+                        anchors.rightMargin: 16
+                        text: {
+                            const t = trackRow.modelData;
+                            // A featured artist, say, when not the album's
+                            const other = t.artist && t.artist !== root.current?.artist ? `  ·  ${t.artist}` : "";
+                            return t.title + other;
+                        }
+                        elide: Text.ElideRight
+                        color: trackRow.playing ? Theme.primary : Theme.on_surface
+                        font.pixelSize: 15
+                    }
+
+                    Text {
+                        id: length
+
+                        anchors.right: parent.right
+                        anchors.rightMargin: 16
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.clock(trackRow.modelData.seconds)
+                        color: Theme.on_surface_variant
+                        font.family: Theme.monoFamily
+                        font.pixelSize: 13
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.playFrom(strip.currentIndex, trackRow.index)
                     }
                 }
             }

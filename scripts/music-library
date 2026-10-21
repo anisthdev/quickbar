@@ -2,13 +2,14 @@
 """mpd's library as albums, for the music menu (modules/MusicMenu.qml), as JSON:
 
   {"albums": [{dir, title, artist, year, added, seconds,
-               cover, tracks: [{file, title, track, seconds}]}, ...],
-   "playing": DIR}
+               cover, tracks: [{file, title, artist, track, seconds}]}, ...],
+   "playing": DIR, "playing_file": FILE}
 
 An album is a folder (tunes files each album into its own, and an artist's
 songs without one into Singles), newest first. Covers are the folder's
 cover.jpg or a track's embedded picture, read through mpd once into
-~/.cache/quickbar/mpd-art. playing is the folder of the song mpd is on.
+~/.cache/quickbar/mpd-art. playing and playing_file are the folder and the
+file of the song mpd is on.
 """
 import hashlib
 import json
@@ -86,13 +87,13 @@ def main():
             "cover": cover(folder, songs[0]["file"]),
             "tracks": [
                 {"file": s["file"], "title": s["title"] or os.path.basename(s["file"]),
-                 "track": number(s["track"]), "seconds": seconds(s["time"])}
+                 "artist": s["artist"], "track": number(s["track"]), "seconds": seconds(s["time"])}
                 for s in songs
             ],
         })
     albums.sort(key=lambda a: (-a["added"], a["artist"].lower(), a["title"].lower()))
     playing = mpc("-f", "%file%", "current").strip()
-    print(json.dumps({"albums": albums, "playing": os.path.dirname(playing) if playing else ""}))
+    print(json.dumps({"albums": albums, "playing": os.path.dirname(playing) if playing else "", "playing_file": playing}))
 
 
 if __name__ == "__main__":
