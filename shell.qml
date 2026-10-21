@@ -48,10 +48,15 @@ ShellRoot {
         reel: reel
     }
 
+    MusicMenu {
+        id: musicMenu
+    }
+
     Entertainment {
         search: mediaSearch
         games: games
         reel: reel
+        music: musicMenu
     }
 
     AppLauncher {

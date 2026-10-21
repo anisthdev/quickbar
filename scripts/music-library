@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""mpd's library as albums, for the music menu (modules/MusicMenu.qml), as JSON:
+
+  {"albums": [{dir, title, artist, year, added, seconds,
+               cover, tracks: [{file, title, track, seconds}]}, ...],
+   "playing": DIR}
+
+An album is a folder (tunes files each album into its own, and an artist's
+songs without one into Singles), newest first. Covers are the folder's
+cover.jpg or a track's embedded picture, read through mpd once into
+~/.cache/quickbar/mpd-art. playing is the folder of the song mpd is on.
+"""
+import hashlib
+import json
+import os
+import subprocess
+import time
+from collections import Counter
+from pathlib import Path
+
+ART = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "quickbar" / "mpd-art"
+FIELDS = ["albumartist", "artist", "album", "date", "track", "title", "time", "mtime", "file"]
+
+
+def mpc(*args):
+    return subprocess.run(["mpc", *args], capture_output=True, text=True).stdout
+
+
+def seconds(text):
+    total = 0
+    for part in text.split(":"):
+        total = total * 60 + (int(part) if part.isdigit() else 0)
+    return total
+
+
+def number(text):
+    head = text.split("/")[0].strip()
+    return int(head) if head.isdigit() else 0
+
+
+def added(text):
+    try:
+        return int(time.mktime(time.strptime(text, "%a %b %d %H:%M:%S %Y")))
+    except ValueError:
+        return 0
+
+
+def cover(folder, first_file):
+    """The album's picture in the cache, fetched from mpd the first time."""
+    out = ART / f"album-{hashlib.md5(folder.encode()).hexdigest()}.jpg"
+    if out.exists():
+        return str(out) if out.stat().st_size else ""
+    ART.mkdir(parents=True, exist_ok=True)
+    for command in ("albumart", "readpicture"):
+        data = subprocess.run(["mpc", command, first_file], capture_output=True).stdout
+        if data:
+            out.write_bytes(data)
+            return str(out)
+    # Nothing: remembered as empty, so it isn't asked again until a rescan
+    out.write_bytes(b"")
+    return ""
+
+
+def main():
+    listing = mpc("-f", "\t".join(f"%{f}%" for f in FIELDS), "listall")
+    folders = {}
+    for line in listing.splitlines():
+        values = line.split("\t")
+        if len(values) != len(FIELDS):
+            continue
+        song = dict(zip(FIELDS, values))
+        folders.setdefault(os.path.dirname(song["file"]), []).append(song)
+
+    albums = []
+    for folder, songs in folders.items():
+        songs.sort(key=lambda s: (number(s["track"]), s["file"]))
+        pick = lambda field: (Counter(s[field] for s in songs if s[field]).most_common(1) or [("", 0)])[0][0]
+        name = os.path.basename(folder) or "Music"
+        albums.append({
+            "dir": folder,
+            "title": pick("album") if name != "Singles" else "Singles",
+            "artist": pick("albumartist") or pick("artist"),
+            "year": pick("date")[:4],
+            "added": max(added(s["mtime"]) for s in songs),
+            "seconds": sum(seconds(s["time"]) for s in songs),
+            "cover": cover(folder, songs[0]["file"]),
+            "tracks": [
+                {"file": s["file"], "title": s["title"] or os.path.basename(s["file"]),
+                 "track": number(s["track"]), "seconds": seconds(s["time"])}
+                for s in songs
+            ],
+        })
+    albums.sort(key=lambda a: (-a["added"], a["artist"].lower(), a["title"].lower()))
+    playing = mpc("-f", "%file%", "current").strip()
+    print(json.dumps({"albums": albums, "playing": os.path.dirname(playing) if playing else ""}))
+
+
+if __name__ == "__main__":
+    main()
