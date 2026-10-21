@@ -101,3 +101,7 @@ names them.
 The lock screen's toolbar icons are Material Symbols Rounded (filled), as
 end-4's lock screen uses: `person` (without ~/.face), `arrow_forward`,
 `coffee`, `dark_mode`, `power_settings_new` and `restart_alt`.
+
+The on-screen keyboard's `keyboard_hide`, `backspace`,
+`subdirectory_arrow_left` and `keyboard_arrow_left`/`right`/`up`/`down`
+are Material Symbols Rounded (filled), as end-4's uses; its pin is `keep`.

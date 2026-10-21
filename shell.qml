@@ -90,10 +90,15 @@ ShellRoot {
         id: keepAwake
     }
 
+    Keyboard {
+        id: keyboard
+    }
+
     ControlPanel {
         power: power
         capture: capture
         wallpaper: wallpaper
         keepAwake: keepAwake
+        keyboard: keyboard
     }
 }

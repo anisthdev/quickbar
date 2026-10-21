@@ -27,6 +27,7 @@ Scope {
     required property var capture
     required property var wallpaper
     required property var keepAwake
+    required property var keyboard
 
     // "" for the first page, else a page's name
     property string page: ""
@@ -187,6 +188,13 @@ Scope {
             label: "Color picker",
             icon: "gcolor3",
             subtitle: "Copy a color from the screen"
+        },
+        {
+            key: "keyboard",
+            label: "Keyboard",
+            icon: "onboard",
+            subtitle: "Type on the screen",
+            trailing: onOff(keyboard.open)
         }
     ]
 
@@ -468,6 +476,10 @@ Scope {
                 go(key);
             } else if (key === "keepawake") {
                 keepAwake.toggle();
+            } else if (key === "keyboard") {
+                // Off the control panel first, so keys go to the window
+                keyboard.toggle();
+                menu.hide();
             } else if (["handoff", "nightlight", "charge"].includes(key)) {
                 switcher.command = [`${scripts}/${({
                             handoff: "toggle-handoff",
