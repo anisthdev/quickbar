@@ -7,6 +7,8 @@ import "../components"
 // headline, a month bar, and a fixed six-week grid (so the menu never
 // changes height) with today filled. The ‹ › buttons or the scroll wheel
 // change month, sliding the grid in from that side; "Today" jumps back.
+// Below it the timer (TimerState): presets to start one, or the one
+// running with pause, five more minutes and stop.
 Dropdown {
     id: root
 
@@ -316,6 +318,155 @@ Dropdown {
             target: gridArea
             shown: root.open
             index: 3
+        }
+    }
+
+    // The timer: presets, or the one running and its controls
+    Column {
+        id: timerSection
+
+        width: 284
+        topPadding: 14
+        spacing: 8
+
+        Label {
+            anchors.verticalCenter: undefined
+            leftPadding: 4
+            text: "Timer"
+            color: Theme.on_surface_variant
+            font.pixelSize: 13
+        }
+
+        Flow {
+            visible: !TimerState.active
+            width: parent.width
+            spacing: 6
+
+            Repeater {
+                model: [
+                    {
+                        label: "5 min",
+                        minutes: 5
+                    },
+                    {
+                        label: "10 min",
+                        minutes: 10
+                    },
+                    {
+                        label: "15 min",
+                        minutes: 15
+                    },
+                    {
+                        label: "30 min",
+                        minutes: 30
+                    },
+                    {
+                        label: `Focus ${TimerState.focusMinutes}`,
+                        focus: true
+                    }
+                ]
+
+                Rectangle {
+                    id: preset
+
+                    required property var modelData
+
+                    width: presetLabel.implicitWidth + 24
+                    height: 32
+                    radius: 16
+                    color: presetMouse.containsMouse ? Theme.secondary_container : Theme.surface_container_high
+
+                    Label {
+                        id: presetLabel
+
+                        anchors.centerIn: parent
+                        text: preset.modelData.label
+                        color: presetMouse.containsMouse ? Theme.on_secondary_container : Theme.on_surface
+                        font.pixelSize: 13
+                    }
+
+                    MouseArea {
+                        id: presetMouse
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: preset.modelData.focus ? TimerState.focus() : TimerState.start(preset.modelData.minutes)
+                    }
+                }
+            }
+        }
+
+        // Running: how long's left, then pause, more time and stop
+        Rectangle {
+            visible: TimerState.active
+            width: parent.width
+            height: 60
+            radius: Theme.radius
+            color: Theme.surface_container_high
+
+            Column {
+                anchors.left: parent.left
+                anchors.leftMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+
+                Label {
+                    anchors.verticalCenter: undefined
+                    text: TimerState.clock(TimerState.remaining)
+                    color: TimerState.paused ? Theme.on_surface_variant : Theme.on_surface
+                    font.pixelSize: 22
+                    font.weight: Font.Bold
+                    font.features: {
+                        "tnum": 1
+                    }
+                }
+
+                Label {
+                    anchors.verticalCenter: undefined
+                    text: TimerState.paused ? `${TimerState.label} · paused` : TimerState.label
+                    color: Theme.on_surface_variant
+                    font.pixelSize: 12
+                }
+            }
+
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+
+                IconButton {
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    icon: TimerState.paused ? "media_play_arrow" : "media_pause"
+                    iconSize: 20
+                    color: Theme.on_surface_variant
+                    onClicked: TimerState.toggle()
+                }
+
+                IconButton {
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    icon: "add"
+                    iconSize: 20
+                    color: Theme.on_surface_variant
+                    onClicked: TimerState.add(5)
+                }
+
+                IconButton {
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    icon: "stop"
+                    iconSize: 20
+                    color: Theme.on_surface_variant
+                    onClicked: TimerState.stop()
+                }
+            }
+        }
+
+        MenuReveal {
+            target: timerSection
+            shown: root.open
+            index: 4
         }
     }
 }
