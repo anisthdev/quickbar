@@ -5,20 +5,24 @@ import "../components"
 
 // Workspaces as a row of rounded slots. Occupied ones show their number and
 // run together into one tonal pill with their occupied neighbours; empty
-// ones are a small dot. The active one is a filled pill that travels
-// between slots, its leading edge first so it stretches and snaps, as
-// Material 3 Expressive tab indicators do. Scroll to step through them.
+// ones are a small dot. The active one is a filled pill (a circle on an
+// empty workspace) that travels between slots, its leading edge first so
+// it stretches and snaps, as Material 3 Expressive tab indicators do.
+// Scroll to step through them.
 Pill {
     id: root
 
     // Always show 1-8, plus any higher workspace that currently exists
     readonly property int count: Math.max(8, HyprState.maxId)
     readonly property int activeIndex: HyprState.focusedId - 1
+    readonly property bool activeEmpty: !occupied(activeIndex)
 
     readonly property real slotHeight: Theme.barHeight - 10
     readonly property real slotWidth: 34
     // The active pill and hover highlight span the whole slot
     readonly property real pillWidth: slotWidth
+    // On an empty workspace the active marker is a circle instead
+    readonly property real indicatorWidth: activeEmpty ? slotHeight : pillWidth
     // The bar's corner radius scaled to the slots, so they're the same
     // shape as the pill around them
     readonly property real cornerRadius: Theme.radius * slotHeight / Theme.barHeight
@@ -32,25 +36,45 @@ Pill {
         Hyprland.dispatch(`hl.dsp.focus({ workspace = ${typeof target === "string" ? `"${target}"` : target} })`);
     }
 
-    // The indicator is a pill centred in the active slot; its two edges
-    // animate separately for the stretch
+    // The indicator is centred in the active slot; its two edges animate
+    // separately for the stretch
     function circleLeft(i) {
-        return i * slotWidth + (slotWidth - pillWidth) / 2;
+        return i * slotWidth + (slotWidth - indicatorWidth) / 2;
     }
 
-    property real indicatorLeft: circleLeft(activeIndex)
-    property real indicatorRight: indicatorLeft + pillWidth
+    // Set, not bound: a binding would jump to the new slot before the
+    // animation could start from the old one
+    property real indicatorLeft: 0
+    property real indicatorRight: 0
 
-    onActiveIndexChanged: {
+    Component.onCompleted: {
+        indicatorLeft = circleLeft(activeIndex);
+        indicatorRight = indicatorLeft + indicatorWidth;
+    }
+
+    // To the active slot, at its width. Moving to another slot, the edge
+    // facing the direction of travel leads; staying (a window came or
+    // went), it just changes shape. Called once for a workspace switch that
+    // also changes whether the active one is empty.
+    function moveIndicator() {
         const left = circleLeft(activeIndex);
-        const forward = left > indicatorLeft;
-        // The edge facing the direction of travel leads
-        leftEdge.duration = forward ? 380 : 200;
-        rightEdge.duration = forward ? 200 : 380;
+        const centre = left + indicatorWidth / 2;
+        const now = (indicatorLeft + indicatorRight) / 2;
+        if (Math.abs(centre - now) > 1) {
+            const forward = centre > now;
+            leftEdge.duration = forward ? 380 : 200;
+            rightEdge.duration = forward ? 200 : 380;
+        } else {
+            leftEdge.duration = Theme.animNormal;
+            rightEdge.duration = Theme.animNormal;
+        }
         leftEdge.to = left;
-        rightEdge.to = left + pillWidth;
+        rightEdge.to = left + indicatorWidth;
         stretch.restart();
     }
+
+    onActiveIndexChanged: Qt.callLater(moveIndicator)
+    onActiveEmptyChanged: Qt.callLater(moveIndicator)
 
     padding: 5
     spacing: 0
@@ -187,9 +211,16 @@ Pill {
             x: root.indicatorLeft
             width: root.indicatorRight - root.indicatorLeft
             height: root.slotHeight
-            radius: root.cornerRadius
+            radius: root.activeEmpty ? height / 2 : root.cornerRadius
             // The quiet tonal fill the menus use for their pick
             color: Theme.secondary_container
+
+            Behavior on radius {
+                NumberAnimation {
+                    duration: Theme.animNormal
+                    easing.type: Easing.OutCubic
+                }
+            }
         }
 
         // Numbers for occupied workspaces, dots for empty ones; drawn over
