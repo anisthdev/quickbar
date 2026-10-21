@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""Claude Code's status line, and its usage for the bar's meter
+(modules/Meter.qml, source "claude").
+
+Set as Claude Code's statusLine command, it gets the session's JSON on
+stdin each time the status line updates. It prints the model and how much
+of the context window is used, and writes how much of each of the
+subscription's rate limit windows is used to
+~/.cache/quickbar/meters/claude.json:
+
+  {"updated": EPOCH, "pids": [...], "items": [{label, progress, text,
+                                              resets_at, reset_progress}, ...]}
+
+The limits only come once a session has had a response, and only for
+claude.ai subscribers, so without them the items are left as they were. A
+window that has reset counts as unused again (reset_progress) until Claude
+Code says otherwise. pids are the Claude Code processes running, this one
+added and those gone dropped, so the meter goes once the last one exits.
+"""
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+METER = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "quickbar" / "meters" / "claude.json"
+WINDOWS = [("five_hour", "5-hour"), ("seven_day", "Weekly"), ("spend_limit", "Spend")]
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def claude_pid():
+    """The Claude Code process this runs under: the first ancestor named
+    claude, or else the parent."""
+    pid = os.getppid()
+    while pid > 1:
+        try:
+            if Path(f"/proc/{pid}/comm").read_text().strip() == "claude":
+                return pid
+            pid = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return os.getppid()
+
+
+def write_meter(limits):
+    try:
+        old = json.loads(METER.read_text())
+    except (OSError, ValueError):
+        old = {}
+    items = []
+    for key, label in WINDOWS:
+        window = limits.get(key) or {}
+        used = window.get("used_percentage")
+        if used is None:
+            continue
+        used = max(0.0, float(used))
+        items.append({
+            "label": label,
+            "progress": min(100.0, used) / 100,
+            "text": f"{round(used)}% used",
+            "resets_at": window.get("resets_at"),
+            "reset_progress": 0,
+        })
+    pid = claude_pid()
+    pids = [pid] + [p for p in old.get("pids", []) if p != pid and alive(p)]
+    if not items:
+        items = old.get("items", [])
+        # Nothing new to say
+        if pids == old.get("pids"):
+            return
+    METER.parent.mkdir(parents=True, exist_ok=True)
+    tmp = METER.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps({"updated": int(time.time()), "pids": pids, "items": items}))
+    tmp.replace(METER)
+
+
+def main():
+    try:
+        data = json.load(sys.stdin)
+    except ValueError:
+        data = {}
+    try:
+        write_meter(data.get("rate_limits") or {})
+    except (OSError, TypeError, ValueError):
+        pass
+    model = (data.get("model") or {}).get("display_name") or "Claude"
+    context = (data.get("context_window") or {}).get("used_percentage")
+    print(model if context is None else f"{model} · {round(context)}% context")
+
+
+if __name__ == "__main__":
+    main()

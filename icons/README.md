@@ -105,3 +105,6 @@ end-4's lock screen uses: `person` (without ~/.face), `arrow_forward`,
 The on-screen keyboard's `keyboard_hide`, `backspace`,
 `subdirectory_arrow_left` and `keyboard_arrow_left`/`right`/`up`/`down`
 are Material Symbols Rounded (filled), as end-4's uses; its pin is `keep`.
+
+`claude` is Claude's mark from Simple Icons (simple-icons 15.10.0,
+`icons/claude.svg`), filled white; its brand colour there is `#D97757`.

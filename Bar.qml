@@ -36,6 +36,14 @@ PanelWindow {
         Workspaces {}
         PhoneLive {}
         Mpd {}
+        // The 5-hour window; the weekly one on hover
+        Meter {
+            source: "claude"
+            icon: "claude"
+            title: "Claude Code"
+            // Claude's brand colour
+            color: "#d97757"
+        }
         Submap {}
     }
 
