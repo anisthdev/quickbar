@@ -4,7 +4,8 @@ import Quickshell
 import QtQuick
 
 // transmission-daemon's downloads, from its RPC: the unfinished torrents,
-// newest first, and one that just finished. Polls every 1.5 s while
+// newest first, and one that just finished. DownloadState shows them with
+// the runner's downloads. Polls every 1.5 s while
 // something downloads or someone is watching, every 10 s otherwise, and
 // every half second for a moment after expect(), so a download added from
 // the media search shows up at once.

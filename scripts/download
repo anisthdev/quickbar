@@ -1,0 +1,333 @@
+#!/usr/bin/env python3
+"""quickbar's download runner: any command as a download the bar shows
+(Downloads.qml), next to Transmission's torrents. tunes runs yt-dlp through
+it; anything else can too.
+
+  download start [--kind K] [--title T] [--subtitle S] [--total N]
+                 [--cwd DIR] [--scratch DIR] [--done SHELL] -- CMD...
+                                  run CMD detached; prints the job's id
+  download pause|resume|cancel|dismiss ID
+  download list                   every job, as JSON, newest first
+
+A job is ~/.cache/quickbar/downloads/<id>.json. CMD reports progress by
+printing lines (stdout or stderr) of `@key value` pairs, several to a line:
+
+  @progress 0.42 | 42%    the current item's share done (or the whole job's)
+  @item [N/T] TITLE       an item starts: the Nth of T, or the next one
+  @rate BYTES_PER_SECOND  @eta SECONDS  @size BYTES  @status TEXT
+  @error TEXT             why it failed, should it fail
+
+"NA" values are skipped, so yt-dlp's --progress-template can print them as
+they are. Once CMD succeeds, --done runs (sh -c, $DOWNLOAD_ID set) with the
+job "processing"; it reports the same way, and the job is done once it
+exits 0. Pause stops CMD and resume starts it again, so it should pick up
+where it was (yt-dlp does, with --download-archive). Cancel also removes
+--scratch, if it's in ~/.cache.
+"""
+import fcntl
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
+
+DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "quickbar" / "downloads"
+# Finished jobs are kept this long, for the bar to notice them
+KEEP_DONE = 3600
+# Least time between two writes of a job's progress
+WRITE_EVERY = 0.4
+PAIR = re.compile(r"@(\w+)\s+((?:(?!\s@\w).)*)")
+
+
+def job_path(job_id):
+    return DIR / f"{job_id}.json"
+
+
+def read(job_id):
+    try:
+        return json.loads(job_path(job_id).read_text())
+    except (OSError, ValueError):
+        return None
+
+
+class Locked:
+    """The downloads folder, locked while a job is read and written."""
+
+    def __enter__(self):
+        DIR.mkdir(parents=True, exist_ok=True)
+        self.file = open(DIR / ".lock", "w")
+        fcntl.flock(self.file, fcntl.LOCK_EX)
+
+    def __exit__(self, *exc):
+        self.file.close()
+
+
+def write(job):
+    path = job_path(job["id"])
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(job))
+    tmp.replace(path)
+
+
+def update(job_id, **changes):
+    """Changes to a job, unless it's gone (cancelled); the job as it is now."""
+    with Locked():
+        job = read(job_id)
+        if job is None:
+            return None
+        job.update(changes)
+        write(job)
+        return job
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, TypeError):
+        return False
+
+
+def stop(job):
+    """Stop the command (or hook) the job runs, with everything it started."""
+    pgid = job.get("pgid")
+    if pgid and alive(pgid):
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except OSError:
+            pass
+
+
+def notify(summary, body, error=False):
+    subprocess.run(
+        ["notify-send", "--app-name=Downloads", f"--icon={'dialog-error' if error else 'folder-download'}", summary, body],
+        capture_output=True,
+    )
+
+
+def number(text):
+    text = text.strip()
+    if not text or text == "NA":
+        return None
+    try:
+        return float(text[:-1]) / 100 if text.endswith("%") else float(text)
+    except ValueError:
+        return None
+
+
+# --- running a job ------------------------------------------------------------
+
+
+def run(job_id):
+    """The job's command, then its done hook; runs detached, from start/resume."""
+    # The command starts over, so its items count from the start again
+    total = (read(job_id) or {}).get("total")
+    job = update(job_id, state="downloading", pid=os.getpid(), error="", item={"index": 0, "total": total} if total else None)
+    if job is None:
+        return
+    log = open(DIR / f"{job_id}.log", "a", buffering=1)
+    if not step(job_id, job["command"], job, log):
+        return
+    if job.get("done"):
+        job = update(job_id, state="processing", status="", rate=None, eta=None)
+        if job is None or not step(job_id, ["sh", "-c", job["done"]], job, log):
+            return
+    job = update(job_id, state="done", progress=1, finished=time.time(), pid=None, pgid=None)
+    if job and not job.get("done"):
+        notify("Downloaded", job["title"])
+
+
+def step(job_id, command, job, log):
+    """Run one command, its @ lines into the job; whether it succeeded."""
+    env = dict(os.environ, DOWNLOAD_ID=job_id)
+    try:
+        proc = subprocess.Popen(
+            command, cwd=job.get("cwd") or None, env=env, text=True, errors="replace",
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        fail(job_id, str(exc))
+        return False
+    update(job_id, pgid=proc.pid)
+
+    state = {k: job.get(k) for k in ("progress", "item", "rate", "eta", "size", "status")}
+    item_share = 0.0
+    last_line = ""
+    error = ""
+    written = 0.0
+    for line in proc.stdout:
+        log.write(line)
+        line = line.rstrip("\n")
+        if not line.lstrip().startswith("@"):
+            if line.strip():
+                last_line = line.strip()
+            continue
+        for key, value in PAIR.findall(line):
+            value = value.strip()
+            if key == "progress":
+                share = number(value)
+                if share is not None:
+                    item_share = max(0.0, min(1.0, share))
+            elif key == "item":
+                item = dict(state.get("item") or {"index": 0, "total": job.get("total") or 0})
+                counted = re.match(r"(\d+)/(\d+)\s*(.*)", value)
+                if counted:
+                    item.update(index=int(counted[1]), total=int(counted[2]), title=counted[3])
+                else:
+                    item.update(index=item["index"] + 1, title=value)
+                state["item"] = item
+                item_share = 0.0
+            elif key in ("rate", "eta", "size"):
+                state[key] = number(value)
+            elif key == "status":
+                state["status"] = value
+            elif key == "error":
+                error = value
+        item = state.get("item")
+        if item and item.get("total"):
+            state["progress"] = max(0.0, min(1.0, (item["index"] - 1 + item_share) / item["total"]))
+        else:
+            state["progress"] = item_share
+        now = time.monotonic()
+        if now - written >= WRITE_EVERY:
+            written = now
+            if update(job_id, **state) is None:
+                break
+    code = proc.wait()
+    log.flush()
+
+    current = read(job_id)
+    # Paused or cancelled meanwhile: not a failure
+    if current is None or current.get("state") in ("paused", "queued"):
+        return False
+    if code != 0:
+        fail(job_id, error or last_line or f"Exited with {code}")
+        return False
+    update(job_id, **state)
+    return True
+
+
+def fail(job_id, message):
+    job = update(job_id, state="error", error=message, pid=None, pgid=None, rate=None, eta=None)
+    if job:
+        notify(f"Download failed: {job['title']}", message, error=True)
+
+
+def spawn(job_id):
+    subprocess.Popen(
+        [sys.executable, os.path.realpath(__file__), "_run", job_id],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+# --- commands -------------------------------------------------------------------
+
+
+def start(args):
+    options = {"kind": "", "title": "", "subtitle": "", "total": 0, "cwd": "", "scratch": "", "done": ""}
+    while args and args[0] != "--":
+        flag = args.pop(0)
+        name = flag.lstrip("-")
+        if name not in options or not args:
+            usage()
+        options[name] = int(args.pop(0)) if name == "total" else args.pop(0)
+    command = args[1:]
+    if not command:
+        usage()
+    job_id = time.strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
+    job = dict(
+        options, id=job_id, title=options["title"] or command[-1], command=command,
+        state="queued", progress=0, added=time.time(),
+        item={"index": 0, "total": options["total"]} if options["total"] else None,
+    )
+    with Locked():
+        write(job)
+    spawn(job_id)
+    print(job_id)
+
+
+def pause(job_id):
+    job = update(job_id, state="paused", rate=None, eta=None)
+    if job:
+        stop(job)
+
+
+def resume(job_id):
+    job = read(job_id)
+    if job and job["state"] in ("paused", "error"):
+        update(job_id, state="queued", error="")
+        spawn(job_id)
+
+
+def cancel(job_id):
+    with Locked():
+        job = read(job_id)
+        if job is None:
+            return
+        job_path(job_id).unlink(missing_ok=True)
+    stop(job)
+    (DIR / f"{job_id}.log").unlink(missing_ok=True)
+    scratch = Path(job.get("scratch") or "").expanduser()
+    cache = DIR.parent.parent
+    if job.get("scratch") and scratch.resolve().is_relative_to(cache) and scratch.resolve() != cache:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def dismiss(job_id):
+    with Locked():
+        job_path(job_id).unlink(missing_ok=True)
+    (DIR / f"{job_id}.log").unlink(missing_ok=True)
+
+
+def list_jobs():
+    """Every job, newest first. A job whose runner died is marked failed,
+    and long finished ones are cleared away."""
+    jobs = []
+    now = time.time()
+    with Locked():
+        for path in DIR.glob("*.json"):
+            try:
+                job = json.loads(path.read_text())
+            except (OSError, ValueError):
+                continue
+            if job["state"] == "done" and now - job.get("finished", now) > KEEP_DONE:
+                path.unlink(missing_ok=True)
+                (DIR / f"{job['id']}.log").unlink(missing_ok=True)
+                continue
+            if job["state"] in ("downloading", "processing") and job.get("pid") and not alive(job["pid"]):
+                job.update(state="error", error="Stopped unexpectedly", pid=None, pgid=None)
+                write(job)
+            jobs.append({k: v for k, v in job.items() if k not in ("command", "done", "pid", "pgid")})
+    jobs.sort(key=lambda j: j.get("added", 0), reverse=True)
+    print(json.dumps(jobs))
+
+
+def usage():
+    print(__doc__.strip().split("\n\n")[1], file=sys.stderr)
+    sys.exit(2)
+
+
+def main():
+    args = sys.argv[1:]
+    if not args:
+        usage()
+    command = args.pop(0)
+    if command == "start":
+        start(args)
+    elif command == "list":
+        list_jobs()
+    elif command in ("pause", "resume", "cancel", "dismiss", "_run") and len(args) == 1:
+        {"pause": pause, "resume": resume, "cancel": cancel, "dismiss": dismiss, "_run": run}[command](args[0])
+    else:
+        usage()
+
+
+if __name__ == "__main__":
+    main()

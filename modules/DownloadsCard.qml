@@ -4,8 +4,9 @@ import ".."
 import "../components"
 
 // Every unfinished download, newest first: its name, a wavy progress bar
-// while it downloads, how much is done and how fast, and pause or resume.
-// From the Transmission singleton.
+// while it downloads, how much is done and how fast, and pause or resume;
+// the runner's (yt-dlp, scripts) also cancel, and a failed one stays with
+// its error until dismissed. From the DownloadState singleton.
 Dropdown {
     id: root
 
@@ -13,14 +14,20 @@ Dropdown {
     title: "Downloads"
     onOpenChanged: if (open)
         cursor.currentIndex = -1
-    // j/k/gg/G move over the downloads, Space or p pauses or resumes one
+    // j/k/gg/G move over the downloads, Space or p pauses or resumes one,
+    // x cancels or dismisses it
     keyHandler: event => {
         if (keys.handle(event))
             return true;
+        const d = DownloadState.active[cursor.currentIndex];
         if (event.key === Qt.Key_Space || event.key === Qt.Key_P) {
-            const t = Transmission.active[cursor.currentIndex];
-            if (t)
-                Transmission.toggle(t);
+            if (d)
+                DownloadState.toggle(d);
+            return true;
+        }
+        if (event.key === Qt.Key_X) {
+            if (d)
+                DownloadState.cancel(d);
             return true;
         }
         return false;
@@ -28,7 +35,7 @@ Dropdown {
 
     RowCursor {
         id: cursor
-        count: Transmission.active.length
+        count: DownloadState.active.length
     }
 
     ListKeys {
@@ -38,19 +45,20 @@ Dropdown {
 
     Repeater {
         model: ScriptModel {
-            values: Transmission.active.map(t => t.id)
+            values: DownloadState.active.map(d => d.key)
         }
 
         Rectangle {
             id: row
 
-            required property int modelData
+            required property string modelData
             required property int index
-            readonly property var torrent: Transmission.byId[modelData] ?? {}
+            readonly property var download: DownloadState.byKey[modelData] ?? {}
             readonly property bool first: index === 0
-            readonly property bool last: index === Transmission.active.length - 1
-            readonly property bool paused: torrent.status === 0
-            readonly property bool downloading: torrent.status === 4
+            readonly property bool last: index === DownloadState.active.length - 1
+            readonly property bool paused: download.state === "paused"
+            readonly property bool failed: download.state === "error"
+            readonly property bool downloading: download.state === "downloading"
 
             width: parent.width
             height: info.implicitHeight + 28
@@ -65,13 +73,13 @@ Dropdown {
 
                 x: 16
                 y: 14
-                width: parent.width - 32 - toggle.width
+                width: parent.width - 32 - buttons.width
                 spacing: 4
 
                 Label {
                     anchors.verticalCenter: undefined
                     width: parent.width
-                    text: row.torrent.name ?? ""
+                    text: row.download.title ?? ""
                     color: Theme.on_surface
                     font.pixelSize: 14
                     elide: Text.ElideMiddle
@@ -79,40 +87,51 @@ Dropdown {
 
                 LinearProgress {
                     width: parent.width
-                    progress: row.torrent.percentDone ?? 0
-                    indeterminate: row.torrent.status === 1 || row.torrent.status === 2
+                    progress: row.download.progress ?? 0
+                    indeterminate: row.download.state === "verifying" || row.download.state === "processing"
                     wavy: row.downloading
                     thickness: 4
-                    color: row.paused ? Theme.outline : Theme.primary
+                    color: row.failed ? Theme.error : row.paused ? Theme.outline : Theme.primary
                 }
 
                 Label {
                     anchors.verticalCenter: undefined
                     width: parent.width
-                    text: {
-                        const t = row.torrent;
-                        const have = Transmission.size(t.sizeWhenDone - t.leftUntilDone);
-                        return `${Math.floor(t.percentDone * 100)}% · ${have} of ${Transmission.size(t.sizeWhenDone)} · ${Transmission.state(t)}`;
-                    }
-                    color: row.torrent.error ? Theme.error : Theme.on_surface_variant
+                    text: row.download.detail ?? ""
+                    color: row.failed ? Theme.error : Theme.on_surface_variant
                     font.pixelSize: 12
                     font.weight: Font.Normal
                     elide: Text.ElideRight
                 }
             }
 
-            IconButton {
-                id: toggle
+            Row {
+                id: buttons
 
                 anchors.right: parent.right
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                implicitWidth: 40
-                implicitHeight: 40
-                icon: row.paused ? "media_play_arrow" : "media_pause"
-                iconSize: 18
-                color: Theme.on_surface_variant
-                onClicked: Transmission.toggle(row.torrent)
+
+                // Pause or resume; for a failed download, try again
+                IconButton {
+                    visible: row.download.canPause ?? false
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    icon: row.failed ? "restart_alt" : row.paused ? "media_play_arrow" : "media_pause"
+                    iconSize: 18
+                    color: Theme.on_surface_variant
+                    onClicked: DownloadState.toggle(row.download)
+                }
+
+                IconButton {
+                    visible: row.download.canCancel ?? false
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    icon: "close"
+                    iconSize: 18
+                    color: Theme.on_surface_variant
+                    onClicked: DownloadState.cancel(row.download)
+                }
             }
 
             // Focus ring
@@ -138,10 +157,10 @@ Dropdown {
 
     Label {
         anchors.verticalCenter: undefined
-        visible: Transmission.active.length === 0
+        visible: DownloadState.active.length === 0
         leftPadding: 8
         bottomPadding: 6
-        text: Transmission.finished ? `${Transmission.finished.name} finished` : "Nothing downloading"
+        text: DownloadState.finished ? `${DownloadState.finished.title} finished` : "Nothing downloading"
         color: Theme.on_surface_variant
         font.pixelSize: 14
         font.weight: Font.Normal
