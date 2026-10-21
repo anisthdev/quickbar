@@ -7,8 +7,8 @@ import "../components"
 // headline, a month bar, and a fixed six-week grid (so the menu never
 // changes height) with today filled. The ‹ › buttons or the scroll wheel
 // change month, sliding the grid in from that side; "Today" jumps back.
-// Below it the timer (TimerState): presets to start one, or the one
-// running with pause, five more minutes and stop.
+// Below it the timer's presets (TimerState); while one runs, it's at the
+// top instead, over the date, with pause, five more minutes and stop.
 Dropdown {
     id: root
 
@@ -101,6 +101,88 @@ Dropdown {
             to: 1
             duration: 150
         }
+    }
+
+    // The timer running, over the calendar: how long's left, then pause,
+    // more time and stop
+    Rectangle {
+        id: runningTimer
+
+        visible: TimerState.active
+        width: 284
+        height: 60
+        radius: Theme.radius
+        color: Theme.surface_container_high
+
+        Column {
+            anchors.left: parent.left
+            anchors.leftMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+
+            Label {
+                anchors.verticalCenter: undefined
+                text: TimerState.clock(TimerState.remaining)
+                color: TimerState.paused ? Theme.on_surface_variant : Theme.on_surface
+                font.pixelSize: 22
+                font.weight: Font.Bold
+                font.features: {
+                    "tnum": 1
+                }
+            }
+
+            Label {
+                anchors.verticalCenter: undefined
+                text: TimerState.paused ? `${TimerState.label} · paused` : TimerState.label
+                color: Theme.on_surface_variant
+                font.pixelSize: 12
+            }
+        }
+
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+
+            IconButton {
+                implicitWidth: 40
+                implicitHeight: 40
+                icon: TimerState.paused ? "media_play_arrow" : "media_pause"
+                iconSize: 20
+                color: Theme.on_surface_variant
+                onClicked: TimerState.toggle()
+            }
+
+            IconButton {
+                implicitWidth: 40
+                implicitHeight: 40
+                icon: "add"
+                iconSize: 20
+                color: Theme.on_surface_variant
+                onClicked: TimerState.add(5)
+            }
+
+            IconButton {
+                implicitWidth: 40
+                implicitHeight: 40
+                icon: "stop"
+                iconSize: 20
+                color: Theme.on_surface_variant
+                onClicked: TimerState.stop()
+            }
+        }
+
+        MenuReveal {
+            target: runningTimer
+            shown: root.open
+            index: 0
+        }
+    }
+
+    // Room under it
+    Item {
+        visible: TimerState.active
+        width: 1
+        height: 6
     }
 
     // Headline: today
@@ -321,10 +403,11 @@ Dropdown {
         }
     }
 
-    // The timer: presets, or the one running and its controls
+    // The timer's presets, while none runs
     Column {
         id: timerSection
 
+        visible: !TimerState.active
         width: 284
         topPadding: 14
         spacing: 8
@@ -338,7 +421,6 @@ Dropdown {
         }
 
         Flow {
-            visible: !TimerState.active
             width: parent.width
             spacing: 6
 
@@ -393,72 +475,6 @@ Dropdown {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: preset.modelData.focus ? TimerState.focus() : TimerState.start(preset.modelData.minutes)
                     }
-                }
-            }
-        }
-
-        // Running: how long's left, then pause, more time and stop
-        Rectangle {
-            visible: TimerState.active
-            width: parent.width
-            height: 60
-            radius: Theme.radius
-            color: Theme.surface_container_high
-
-            Column {
-                anchors.left: parent.left
-                anchors.leftMargin: 16
-                anchors.verticalCenter: parent.verticalCenter
-
-                Label {
-                    anchors.verticalCenter: undefined
-                    text: TimerState.clock(TimerState.remaining)
-                    color: TimerState.paused ? Theme.on_surface_variant : Theme.on_surface
-                    font.pixelSize: 22
-                    font.weight: Font.Bold
-                    font.features: {
-                        "tnum": 1
-                    }
-                }
-
-                Label {
-                    anchors.verticalCenter: undefined
-                    text: TimerState.paused ? `${TimerState.label} · paused` : TimerState.label
-                    color: Theme.on_surface_variant
-                    font.pixelSize: 12
-                }
-            }
-
-            Row {
-                anchors.right: parent.right
-                anchors.rightMargin: 6
-                anchors.verticalCenter: parent.verticalCenter
-
-                IconButton {
-                    implicitWidth: 40
-                    implicitHeight: 40
-                    icon: TimerState.paused ? "media_play_arrow" : "media_pause"
-                    iconSize: 20
-                    color: Theme.on_surface_variant
-                    onClicked: TimerState.toggle()
-                }
-
-                IconButton {
-                    implicitWidth: 40
-                    implicitHeight: 40
-                    icon: "add"
-                    iconSize: 20
-                    color: Theme.on_surface_variant
-                    onClicked: TimerState.add(5)
-                }
-
-                IconButton {
-                    implicitWidth: 40
-                    implicitHeight: 40
-                    icon: "stop"
-                    iconSize: 20
-                    color: Theme.on_surface_variant
-                    onClicked: TimerState.stop()
                 }
             }
         }
