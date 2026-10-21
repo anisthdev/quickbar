@@ -5,34 +5,56 @@ import QtQuick
 import QtQuick.Effects
 import ".."
 import "../components"
+import "LockShapes.js" as LockShapes
 
-// One screen of the lock screen (see LockScreen), after Android's: the
-// wallpaper blurred and dimmed, the large stacked clock with the date
-// under it, and at the bottom the password field, the fingerprint and, when
-// charging, the battery. Typing goes to the field from anywhere: Enter
-// checks, Backspace takes one back (Ctrl+Backspace or Ctrl+U all), Esc
-// clears (and closes a preview when empty).
+// One screen of the lock screen (see LockScreen), after end-4's: the
+// wallpaper blurred and dimmed, the large stacked clock with the date at
+// the top, and along the bottom three pills: who it is; the fingerprint,
+// the password field (a Material shape per character) and its button; the battery, sleep, power off and restart. Typing goes to the
+// field from anywhere: Enter checks (Ctrl+Enter also turns on Keep awake),
+// Backspace takes one back (Ctrl+Backspace or Ctrl+U all), Esc clears, or
+// leaves power off and restart for unlocking (and closes a preview when
+// empty).
 Item {
     id: root
 
     required property var lock
 
-    readonly property color base: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 1)
+    readonly property color base: solid(Theme.background)
     readonly property var battery: UPower.displayDevice
     readonly property bool charging: battery?.state === UPowerDeviceState.Charging || battery?.state === UPowerDeviceState.FullyCharged
+    readonly property bool ctrlHeld: held.ctrl
 
     // The field's shake, an offset in pixels
     property real shakeX: 0
 
+    function solid(c) {
+        return Qt.rgba(c.r, c.g, c.b, 1);
+    }
+
     focus: true
     Component.onCompleted: forceActiveFocus()
+
+    QtObject {
+        id: held
+
+        property bool ctrl: false
+    }
+
+    Keys.onReleased: event => {
+        if (event.key === Qt.Key_Control)
+            held.ctrl = false;
+    }
 
     Keys.onPressed: event => {
         const ctrl = event.modifiers & Qt.ControlModifier;
         switch (event.key) {
+        case Qt.Key_Control:
+            held.ctrl = true;
+            return;
         case Qt.Key_Return:
         case Qt.Key_Enter:
-            lock.submit();
+            lock.submit(ctrl);
             break;
         case Qt.Key_Backspace:
             ctrl ? lock.clear() : lock.backspace();
@@ -43,7 +65,9 @@ Item {
             lock.clear();
             break;
         case Qt.Key_Escape:
-            if (lock.password === "" && lock.previewing)
+            if (lock.password === "" && lock.target !== "unlock")
+                lock.aim(lock.target);
+            else if (lock.password === "" && lock.previewing)
                 lock.unlock();
             lock.clear();
             break;
@@ -209,178 +233,298 @@ Item {
         }
     }
 
-    // The battery, at the top right as in Android's status bar
-    BatteryIcon {
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.margins: 28
-        anchors.verticalCenter: undefined
-        visible: root.battery?.isLaptopBattery ?? false
-        percent: {
-            const p = root.battery?.percentage ?? 0;
-            return p <= 1 ? p * 100 : p;
-        }
-        charging: root.charging
-        size: 18
-        opacity: root.lock.reveal
-    }
+    // The toolbar, rising and scaling in as the lock shows
+    Row {
+        id: toolbar
 
-    // Who it is, the field, what it says and the fingerprint, below the
-    // middle
-    Column {
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: root.height * 0.14 + 80 * (1 - root.lock.reveal)
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 28 - 40 * (1 - root.lock.reveal)
+        spacing: 10
         opacity: root.lock.reveal
-        spacing: 18
+        scale: 0.9 + 0.1 * root.lock.reveal
 
-        // The picture (~/.face), round
-        ClippingRectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: 104
-            height: 104
-            radius: width / 2
-            color: Theme.surface_container_high
+        // Who it is: the picture (~/.face), round, or an icon without one
+        Island {
 
-            Image {
-                anchors.fill: parent
-                source: "file://" + Quickshell.env("HOME") + "/.face"
-                sourceSize.width: 208
-                sourceSize.height: 208
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                mipmap: true
+            IslandRow {
+                ClippingRectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 22
+                    height: 22
+                    radius: width / 2
+                    color: "transparent"
+
+                    Image {
+                        id: face
+
+                        anchors.fill: parent
+                        source: "file://" + Quickshell.env("HOME") + "/.face"
+                        sourceSize.width: 44
+                        sourceSize.height: 44
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        mipmap: true
+                    }
+
+                    Icon {
+                        anchors.centerIn: parent
+                        visible: face.status === Image.Error
+                        name: "person"
+                        size: 22
+                        color: Theme.on_surface_variant
+                    }
+                }
+
+                Label {
+                    rightPadding: 6
+                    text: root.lock.userName
+                    color: Theme.on_surface_variant
+                    font.pixelSize: 15
+                }
             }
         }
 
-        Label {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: undefined
-            topPadding: -6
-            bottomPadding: 6
-            text: root.lock.userName
-            color: Theme.on_surface
-            font.pixelSize: 24
-            font.weight: Theme.titleWeight
-            roundness: Theme.titleRoundness
-        }
+        // The fingerprint, the field and its button
+        Island {
+            id: main
 
-        Rectangle {
-            id: field
+            transform: Translate {
+                x: root.shakeX
+            }
 
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.horizontalCenterOffset: root.shakeX
-            width: 340
-            height: 46
-            radius: height / 2
-            color: Theme.surface_container_high
-            border.width: root.lock.message !== "" ? 2 : 0
-            border.color: Theme.error
-
-            // A lock, or the check going on
-            Item {
-                anchors.left: parent.left
-                anchors.leftMargin: 20
-                anchors.verticalCenter: parent.verticalCenter
-                width: 24
-                height: 24
+            IslandRow {
+                leftPadding: root.lock.finger === "off" ? 8 : 14
+                rightPadding: 6
 
                 Icon {
-                    anchors.centerIn: parent
-                    visible: !root.lock.checking
-                    name: "lock"
-                    size: 22
-                    color: root.lock.message !== "" ? Theme.error : Theme.on_surface_variant
+                    visible: root.lock.finger !== "off"
+                    name: "fingerprint"
+                    size: 26
+                    color: root.lock.finger === "failed" ? Theme.error : Theme.on_surface_variant
                 }
 
-                CircularProgress {
-                    anchors.centerIn: parent
-                    visible: root.lock.checking
-                    indeterminate: true
-                    size: 22
-                    thickness: 3
-                }
-            }
+                Item {
+                    id: field
 
-            Label {
-                anchors.centerIn: parent
-                visible: root.lock.password === ""
-                text: "Password"
-                color: Theme.on_surface_variant
-                font.pixelSize: 16
-            }
+                    width: 260
+                    height: 40
+                    anchors.verticalCenter: parent.verticalCenter
 
-            // A dot per character, each springing in and out
-            ListView {
-                id: dots
+                    Label {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 4
+                        visible: root.lock.password === ""
+                        text: {
+                            if (root.lock.message !== "")
+                                return root.lock.message;
+                            if (root.lock.target === "poweroff")
+                                return "Password to power off";
+                            if (root.lock.target === "reboot")
+                                return "Password to restart";
+                            return root.lock.finger === "off" ? "Enter password" : "Password or fingerprint";
+                        }
+                        color: root.lock.message !== "" ? Theme.error : Theme.on_surface_variant
+                        font.pixelSize: 15
+                    }
 
-                anchors.centerIn: parent
-                width: Math.min(contentWidth, parent.width - 120)
-                height: 11
-                orientation: ListView.Horizontal
-                spacing: 8
-                interactive: false
-                clip: true
-                model: root.lock.dots
-                onCountChanged: positionViewAtEnd()
-                delegate: Rectangle {
-                    width: 11
-                    height: 11
-                    radius: 5.5
-                    color: Theme.on_surface
-                    opacity: root.lock.checking ? 0.5 : 1
+                    // A shape per character, each springing in (in the
+                    // accent, settling to the text colour) and out
+                    ListView {
+                        id: dots
 
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Theme.animFast
+                        anchors.left: parent.left
+                        anchors.leftMargin: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.min(contentWidth, parent.width - 8)
+                        height: 18
+                        orientation: ListView.Horizontal
+                        spacing: 4
+                        interactive: false
+                        clip: true
+                        model: root.lock.dots
+                        onCountChanged: positionViewAtEnd()
+                        delegate: Item {
+                            id: cell
+
+                            required property int index
+
+                            width: 18
+                            height: 18
+                            opacity: root.lock.checking ? 0.5 : 1
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.animFast
+                                }
+                            }
+
+                            GlyphShape {
+                                // -1 while it goes
+                                d: LockShapes.shapes[Math.max(0, cell.index) % LockShapes.shapes.length]
+                                unit: 18 / 100
+                                fill: Theme.primary
+
+                                ColorAnimation on fill {
+                                    to: Theme.on_surface
+                                    duration: 1000
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+                        }
+                        add: Transition {
+                            NumberAnimation {
+                                property: "scale"
+                                from: 0
+                                to: 1
+                                duration: 220
+                                easing.type: Easing.OutBack
+                                easing.overshoot: 2.5
+                            }
+                        }
+                        remove: Transition {
+                            NumberAnimation {
+                                property: "scale"
+                                to: 0
+                                duration: 120
+                            }
+                        }
+                        displaced: Transition {
+                            NumberAnimation {
+                                property: "x"
+                                duration: 160
+                                easing.type: Easing.OutCubic
+                            }
                         }
                     }
                 }
-                add: Transition {
-                    NumberAnimation {
-                        property: "scale"
-                        from: 0
-                        to: 1
-                        duration: 220
-                        easing.type: Easing.OutBack
-                        easing.overshoot: 2.5
+
+                // Unlock (a cup with Ctrl held: and keep awake), or power off
+                // or restart; the check going on
+                Rectangle {
+                    width: 44
+                    height: 44
+                    radius: 22
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: root.lock.checking ? root.solid(Theme.surface_container_highest) : root.solid(Theme.primary)
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Theme.animFast
+                        }
                     }
-                }
-                remove: Transition {
-                    NumberAnimation {
-                        property: "scale"
-                        to: 0
-                        duration: 120
+
+                    Icon {
+                        anchors.centerIn: parent
+                        visible: !root.lock.checking
+                        name: root.lock.target === "poweroff" ? "power_settings_new" : root.lock.target === "reboot" ? "restart_alt" : root.ctrlHeld ? "coffee" : "arrow_forward"
+                        size: 24
+                        color: root.solid(Theme.on_primary)
                     }
-                }
-                displaced: Transition {
-                    NumberAnimation {
-                        property: "x"
-                        duration: 160
-                        easing.type: Easing.OutCubic
+
+                    CircularProgress {
+                        anchors.centerIn: parent
+                        visible: root.lock.checking
+                        indeterminate: true
+                        size: 22
+                        thickness: 3
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.lock.submit(false)
                     }
                 }
             }
         }
 
-        // What went wrong, or how to unlock
-        Label {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: undefined
-            text: root.lock.message !== "" ? root.lock.message : root.lock.finger === "off" ? "Type your password to unlock" : "Swipe your finger or type your password"
-            color: root.lock.message !== "" ? Theme.error : Theme.on_surface_variant
-            font.pixelSize: 15
-        }
+        // The battery, sleep, power off and restart
+        Island {
 
-        // The fingerprint, as on Android's lock screen; red on a miss
-        Icon {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.horizontalCenterOffset: root.lock.finger === "failed" ? root.shakeX : 0
-            anchors.verticalCenter: undefined
-            visible: root.lock.finger !== "off"
-            name: "fingerprint"
-            size: 44
-            color: root.lock.finger === "failed" ? Theme.error : Theme.primary
+            IslandRow {
+                rightPadding: 6
+
+                // Android's battery, the percentage inside; a bolt while
+                // charging
+                Item {
+                    visible: root.battery?.isLaptopBattery ?? false
+                    anchors.verticalCenter: parent.verticalCenter
+                    implicitWidth: batteryIcon.implicitWidth + 6
+                    implicitHeight: batteryIcon.implicitHeight
+
+                    BatteryIcon {
+                        id: batteryIcon
+
+                        percent: {
+                            const p = root.battery?.percentage ?? 0;
+                            return p <= 1 ? p * 100 : p;
+                        }
+                        charging: root.charging
+                        color: Theme.on_surface_variant
+                        size: 16
+                    }
+                }
+
+                ToolButton {
+                    icon: "dark_mode"
+                    onClicked: Quickshell.execDetached(["sh", "-c", "mpc -q pause; systemctl suspend"])
+                }
+
+                ToolButton {
+                    icon: "power_settings_new"
+                    toggled: root.lock.target === "poweroff"
+                    onClicked: root.lock.aim("poweroff")
+                }
+
+                ToolButton {
+                    icon: "restart_alt"
+                    toggled: root.lock.target === "reboot"
+                    onClicked: root.lock.aim("reboot")
+                }
+            }
+        }
+    }
+
+    // One of the toolbar's pills
+    component Island: Rectangle {
+        // Inline components don't see root's solid()
+        implicitWidth: childrenRect.width
+        height: 56
+        radius: height / 2
+        color: Qt.rgba(Theme.surface_container_high.r, Theme.surface_container_high.g, Theme.surface_container_high.b, 1)
+    }
+
+    // An island's contents, padded and centred
+    component IslandRow: Row {
+        anchors.verticalCenter: parent.verticalCenter
+        leftPadding: 14
+        rightPadding: 14
+        spacing: 10
+    }
+
+    component ToolButton: IconButton {
+        property bool toggled: false
+        // Inline components don't see root's
+        readonly property color primary: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 1)
+
+        implicitWidth: 44
+        implicitHeight: 44
+        iconSize: 22
+        color: toggled ? Qt.rgba(Theme.on_primary.r, Theme.on_primary.g, Theme.on_primary.b, 1) : Theme.on_surface_variant
+
+        Rectangle {
+            z: -1
+            anchors.fill: parent
+            radius: width / 2
+            color: parent.primary
+            opacity: parent.toggled ? 1 : 0
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Theme.animFast
+                }
+            }
         }
     }
 }

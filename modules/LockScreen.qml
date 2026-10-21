@@ -11,6 +11,10 @@ import ".."
 // reader (pam_fprintd, through pam/fprint), both waiting at once, as on
 // hyprlock.
 //
+// Power off and restart, from the lock screen's toolbar, wait for the
+// password (or finger) as unlocking does; Ctrl+Enter unlocks and turns on
+// Keep awake.
+//
 // `preview` shows the same screen in an ordinary window without locking
 // anything, to see it; a right password or finger closes it too.
 //
@@ -19,6 +23,9 @@ import ".."
 // hyprlock in its place (allow_session_lock_restore).
 Scope {
     id: root
+
+    // To turn on with Ctrl+Enter
+    property var keepAwake
 
     property bool locked: false
     property bool previewing: false
@@ -44,6 +51,11 @@ Scope {
 
     // "ready", "failed" (just now), "off" (too many tries or no reader)
     property string finger: "ready"
+
+    // What a right password does: "unlock", "poweroff" or "reboot"
+    property string target: "unlock"
+    // Ctrl+Enter: Keep awake once unlocked
+    property bool awakeAfter: false
 
     signal shake
 
@@ -72,6 +84,8 @@ Scope {
         checking = false;
         finger = "ready";
         fingerErrors = 0;
+        target = "unlock";
+        awakeAfter = false;
     }
 
     function start() {
@@ -80,7 +94,29 @@ Scope {
         fprint.begin();
     }
 
-    // A right password or finger: the screen folds away, then lets go
+    // Power off or restart on the next right password; again to go back
+    function aim(action) {
+        target = target === action ? "unlock" : action;
+        message = "";
+    }
+
+    // A right password or finger: unlock, or what it was for
+    function succeed() {
+        if (target === "unlock" || previewing) {
+            if (awakeAfter && !previewing && keepAwake)
+                keepAwake.on = true;
+            unlock();
+            return;
+        }
+        Quickshell.execDetached(["systemctl", target]);
+        // Still locked if it was refused
+        checking = false;
+        clear();
+        target = "unlock";
+        retry.restart();
+    }
+
+    // The screen folds away, then lets go
     function unlock() {
         if (pam.active)
             pam.abort();
@@ -119,9 +155,10 @@ Scope {
         dots.clear();
     }
 
-    function submit() {
+    function submit(awake) {
         if (checking || password === "")
             return;
+        awakeAfter = awake;
         checking = true;
         message = "";
         if (!pam.start()) {
@@ -141,7 +178,7 @@ Scope {
         }
         onCompleted: result => {
             if (result === PamResult.Success) {
-                root.unlock();
+                root.succeed();
                 return;
             }
             root.checking = false;
@@ -193,7 +230,7 @@ Scope {
         }
         onCompleted: result => {
             if (result === PamResult.Success) {
-                root.unlock();
+                root.succeed();
             } else if (result === PamResult.Failed || result === PamResult.MaxTries) {
                 root.finger = "off";
                 root.message = "Too many tries, use your password";

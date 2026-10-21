@@ -97,3 +97,7 @@ Weather icons (`weather/`, the weather card and pill) are the dark set from
 names them.
 
 `task_alt` (the library's Watched chip) is Material Symbols Rounded.
+
+The lock screen's toolbar icons are Material Symbols Rounded (filled), as
+end-4's lock screen uses: `person` (without ~/.face), `arrow_forward`,
+`coffee`, `dark_mode`, `power_settings_new` and `restart_alt`.

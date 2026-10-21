@@ -80,7 +80,9 @@ ShellRoot {
 
     EmojiPicker {}
 
-    LockScreen {}
+    LockScreen {
+        keepAwake: keepAwake
+    }
 
     Polkit {}
 
