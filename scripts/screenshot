@@ -1,13 +1,27 @@
 #!/usr/bin/env bash
-# quickbar's screenshot (modules/Capture.qml): saved by hyprshot, with the
-# shutter sound.
+# quickbar's screenshot (modules/Capture.qml): saved by hyprshot to
+# ~/Pictures and copied, with the shutter sound, then a notification with
+# what to do with it next (scripts/capture-notify).
 #   screenshot screen   the focused screen
 #   screenshot region   a region picked with the mouse
 #   screenshot window   a window picked with the mouse
 #   screenshot timer    the focused screen after a 5 s countdown
 
+dir="$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Pictures")"
+name="$(date +%Y-%m-%d-%H%M%S)_hyprshot.png"
+
+# hyprshot's own notification is left out for ours; without it hyprshot
+# exits 1 even when it saved, so the file says whether it did
+shot() {
+    hyprshot --silent -o "$dir" -f "$name" "$@"
+}
+
+# The sound, and the notification once the file is there (a cancelled
+# pick leaves none)
 shutter() {
+    [[ -f "$dir/$name" ]] || return 0
     pw-play ~/.local/share/sounds/macos/camera-shutter.ogg &
+    setsid -f "$(dirname "$(realpath "$0")")/capture-notify" screenshot "$dir/$name" >/dev/null 2>&1
 }
 
 # One card counting down in place (each lasts past the next, which takes it
@@ -27,10 +41,10 @@ countdown() {
 }
 
 case "$1" in
-screen) hyprshot -m active -m output && shutter ;;
-region) hyprshot -m region && shutter ;;
-window) hyprshot -m window && shutter ;;
-timer) countdown 5 && hyprshot -m active -m output && shutter ;;
+screen) shot -m active -m output; shutter ;;
+region) shot -m region; shutter ;;
+window) shot -m window; shutter ;;
+timer) countdown 5 && shot -m active -m output; shutter ;;
 *)
     echo "usage: screenshot screen|region|window|timer" >&2
     exit 2

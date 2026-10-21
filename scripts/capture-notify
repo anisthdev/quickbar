@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# quickbar's "saved" notification for a capture (scripts/screenshot and
+# scripts/screenrecord): the picture, and what to do with it next. It
+# waits for the pick, so the scripts start it on its own and carry on.
+#   capture-notify screenshot FILE   Edit (satty), Copy text (OCR), Show
+#                                    in folder, Delete; a click opens it
+#   capture-notify recording FILE    Play, Copy file, Show in folder,
+#                                    Delete; a click plays it
+set -euo pipefail
+
+kind="$1"
+file="$2"
+[[ -f "$file" ]] || exit 0
+name="${file##*/}"
+where="${file%/*}"
+where="${where/#$HOME/\~}"
+
+show_in_folder() {
+    exec uwsm app -- ghostty --title=yazi -e yazi "$file"
+}
+
+delete() {
+    gio trash "$file"
+    notify-send -a "$1" -n "$2" -t 2000 "$1 deleted" "$name is in the trash"
+}
+
+screenshot() {
+    local icon=gnome-screenshot
+    case "$(notify-send -a Screenshot -n "$icon" -i "file://$file" \
+        -A default=Open -A edit=Edit -A text="Copy text" -A show="Show in folder" -A delete=Delete \
+        "Screenshot saved" "Copied to the clipboard · $where")" in
+    default) exec uwsm app -- imv "$file" ;;
+    edit) exec uwsm app -- satty --filename "$file" --output-filename "$file" --copy-command wl-copy ;;
+    text)
+        # Automatic page layout: a screenshot is rarely one block of text
+        local text
+        text="$(tesseract "$file" stdout -l "${OCR_LANG:-eng}" --psm 3 2>/dev/null | sed '/^[[:space:]]*$/d')"
+        if [[ -z "$text" ]]; then
+            notify-send -a Screenshot -n "$icon" -t 3000 "No text found" "$name"
+        else
+            printf '%s\n' "$text" | wl-copy
+            notify-send -a Screenshot -n "$icon" "Text copied" "$text"
+        fi
+        ;;
+    show) show_in_folder ;;
+    delete) delete Screenshot "$icon" ;;
+    esac
+}
+
+recording() {
+    local icon=simplescreenrecorder
+    # A frame from early on for the picture, and the length and size
+    local thumbs="${XDG_CACHE_HOME:-$HOME/.cache}/quickbar/recordings"
+    local thumb="$thumbs/${name%.*}.png"
+    mkdir -p "$thumbs"
+    ffmpegthumbnailer -i "$file" -o "$thumb" -s 256 -t 10% 2>/dev/null || thumb=""
+    local seconds length size
+    seconds="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$file" 2>/dev/null || echo 0)"
+    seconds="${seconds%.*}"
+    seconds="${seconds:-0}"
+    if ((seconds >= 3600)); then
+        length="$(printf '%d:%02d:%02d' $((seconds / 3600)) $((seconds / 60 % 60)) $((seconds % 60)))"
+    else
+        length="$(printf '%d:%02d' $((seconds / 60)) $((seconds % 60)))"
+    fi
+    size="$(du -h "$file" | cut -f1)"
+    case "$(notify-send -a "Screen recording" -n "$icon" ${thumb:+-i "file://$thumb"} \
+        -A default=Play -A play=Play -A copy="Copy file" -A show="Show in folder" -A delete=Delete \
+        "Screen recording saved" "$length · ${size}B · $where")" in
+    default | play) exec uwsm app -- mpv --player-operation-mode=pseudo-gui -- "$file" ;;
+    copy)
+        # As a file, so it pastes into chats and file managers
+        printf 'file://%s\n' "$file" | wl-copy -t text/uri-list
+        notify-send -a "Screen recording" -n "$icon" -t 2000 "File copied" "$name"
+        ;;
+    show) show_in_folder ;;
+    delete)
+        [[ -n "$thumb" ]] && rm -f "$thumb"
+        delete "Screen recording" "$icon"
+        ;;
+    esac
+}
+
+case "$kind" in
+screenshot) screenshot ;;
+recording) recording ;;
+*)
+    echo "usage: capture-notify screenshot|recording FILE" >&2
+    exit 2
+    ;;
+esac

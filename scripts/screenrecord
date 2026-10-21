@@ -1,23 +1,35 @@
 #!/usr/bin/env bash
 # quickbar's screen recording (modules/Capture.qml): wl-screenrec to
-# ~/Videos, with a tray icon (the tray CLI) that stops it on a click.
-#   screenrecord screen   the focused screen
-#   screenrecord region   a region picked with the mouse
-#   screenrecord window   a window on this workspace picked with the mouse
-#   screenrecord stop     stops a recording
+# ~/Videos, with a tray icon (the tray CLI) showing how long it's been
+# going: a click stops it, and its menu stops it, discards it or shows the
+# recordings. Once saved, a notification with what to do with it next
+# (scripts/capture-notify).
+#   screenrecord screen    the focused screen
+#   screenrecord region    a region picked with the mouse
+#   screenrecord window    a window on this workspace picked with the mouse
+#   screenrecord stop      stops a recording, saving it
+#   screenrecord discard   stops a recording, deleting it
 
-tray_id="screenrecord"
-icon="/usr/share/icons/Papirus-Dark/128x128/apps/com.github.mohelm97.screenrecorder.svg"
-stop="pkill -x wl-screenrec"
+self="$(realpath "$0")"
+# Left by discard, for the recording to find once it stops
+discard="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/quickbar/discard-recording"
 
 record() {
     local file="$HOME/Videos/screenrecording-$(date +'%Y-%m-%d_%H-%M-%S').mp4"
-    notify-send "Screen recording starting..." -t 1000 -i "$icon"
-    sleep 1
-    tray run --id "$tray_id" --icon record --tooltip "Recording screen" --on-click "$stop" --duration -- \
-        wl-screenrec -f "$file" --ffmpeg-encoder-options="-c:v libx264 -crf 23 -preset medium -movflags +faststart" "$@"
-    tray hide --id "$tray_id"
-    notify-send "Screen recording saved to ~/Videos" -t 2000 -i "$icon"
+    rm -f "$discard"
+    tray run --id screenrecord --icon record --tooltip "Recording the screen" --duration \
+        --on-click "$self stop" \
+        --menu "Stop and save=$self stop" \
+        --menu "Discard=$self discard" \
+        --menu - \
+        --menu "Show recordings=uwsm app -- ghostty --title=yazi -e yazi $HOME/Videos" \
+        -- wl-screenrec -f "$file" --ffmpeg-encoder-options="-c:v libx264 -crf 23 -preset medium -movflags +faststart" "$@"
+    if [[ -f "$discard" ]]; then
+        rm -f "$discard" "$file"
+        notify-send -a "Screen recording" -n simplescreenrecorder -t 2000 "Recording discarded"
+    elif [[ -f "$file" ]]; then
+        setsid -f "$(dirname "$self")/capture-notify" recording "$file" >/dev/null 2>&1
+    fi
 }
 
 case "$1" in
@@ -37,8 +49,13 @@ window)
 stop)
     pkill -x wl-screenrec
     ;;
+discard)
+    mkdir -p "${discard%/*}"
+    pgrep -x wl-screenrec >/dev/null && touch "$discard"
+    pkill -x wl-screenrec
+    ;;
 *)
-    echo "usage: screenrecord screen|region|window|stop" >&2
+    echo "usage: screenrecord screen|region|window|stop|discard" >&2
     exit 2
     ;;
 esac
