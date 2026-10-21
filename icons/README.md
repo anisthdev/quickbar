@@ -108,3 +108,8 @@ are Material Symbols Rounded (filled), as end-4's uses; its pin is `keep`.
 
 `claude` is Claude's mark from Simple Icons (simple-icons 15.10.0,
 `icons/claude.svg`), filled white; its brand colour there is `#D97757`.
+
+The region selector's `content_copy`, `document_scanner`, `translate` and
+`image_search`, and the timer and to-do's `timer`, `check_box`,
+`check_box_outline_blank`, `add`, `stop` and `checklist`, are Material Symbols
+Rounded (filled), from @material-symbols/svg-400 0.48.1, filled white.

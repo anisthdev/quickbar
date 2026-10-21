@@ -7,4 +7,6 @@ import QtQuick
 Singleton {
     // The control panel: show(page) opens it at a page
     property var controlPanel: null
+    // The to-do menu: toggle()
+    property var tasks: null
 }
