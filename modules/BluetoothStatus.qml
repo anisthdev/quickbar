@@ -16,6 +16,7 @@ StatusItem {
     // Android has no "off" Bluetooth icon; off is the plain icon, unfilled
     icon: connected > 0 ? "bluetooth_connected" : "bluetooth"
     iconSize: 18
+    shape: "Clover4Leaf"
     active: powered
     open: Panels.controlPanel?.openAt === "bluetooth"
     text: Settings.showStatusDetails && powered ? String(connected) : ""

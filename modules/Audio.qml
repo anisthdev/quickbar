@@ -21,6 +21,7 @@ StatusItem {
     // Bluetooth audio
     icon: (bluetooth ? "volume_bt" : "volume") + (muted ? "_mute" : "")
     iconSize: 18
+    shape: "SoftBurst"
     active: !muted
     open: ["sound", "mic"].includes(Panels.controlPanel?.openAt)
     readonly property string sinkName: sink?.description || sink?.nickname || sink?.name || ""

@@ -7,6 +7,8 @@ Rectangle {
     id: root
 
     default property alias content: row.data
+    // Drawn behind the content, e.g. a state layer in a shape of its own
+    property alias underlay: under.data
     property real padding: 12
     property alias spacing: row.spacing
     property bool clickable: false
@@ -69,6 +71,11 @@ Rectangle {
                 duration: Theme.animFast
             }
         }
+    }
+
+    Item {
+        id: under
+        anchors.fill: parent
     }
 
     Row {
