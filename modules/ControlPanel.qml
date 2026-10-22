@@ -25,6 +25,7 @@ Scope {
 
     required property var power
     required property var capture
+    required property var region
     required property var wallpaper
     required property var keepAwake
     required property var keyboard
@@ -553,7 +554,7 @@ Scope {
                 root.wallpaper.show(true);
             // Picks from the screen, once this menu is off it
             else if (action === "ocr")
-                Quickshell.execDetached([`${root.scripts}/ocr-region`]);
+                root.region.show("text");
             else if (action === "colorpicker")
                 Quickshell.execDetached(["hyprpicker", "-a"]);
         }

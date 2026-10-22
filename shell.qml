@@ -71,7 +71,9 @@ ShellRoot {
         id: capture
     }
 
-    RegionSelector {}
+    RegionSelector {
+        id: region
+    }
 
     WallpaperPicker {
         id: wallpaper
@@ -108,6 +110,7 @@ ShellRoot {
     ControlPanel {
         power: power
         capture: capture
+        region: region
         wallpaper: wallpaper
         keepAwake: keepAwake
         keyboard: keyboard
