@@ -31,8 +31,8 @@ import ".."
 // shows by the title, and it, h, Left or Backspace (and Esc with no
 // filter) emit `back`; `replay()` brings the rows
 // in again for a new page; `header` goes between the title and the field
-// (a slider); `extraKeys` gets the keys first. Setting `prompt` turns the
-// field into a password field showing it: Enter emits `submitted`, Esc
+// (a slider), `footer` under the rest (the calculator's answer);
+// `extraKeys` gets the keys first. Setting `prompt` turns the field into a password field showing it: Enter emits `submitted`, Esc
 // `promptCancelled`; with `promptSecret` off it's plain text (a note), and
 // the rows below are only there to look at.
 Scope {
@@ -59,6 +59,8 @@ Scope {
     property string entryKey: ""
     property var extraKeys: null
     property Component header: null
+    // Under everything else (the calculator's answer)
+    property Component footer: null
     property string prompt: ""
     property bool promptSecret: true
     // The field's icon, from icons/
@@ -77,6 +79,8 @@ Scope {
     property int pickModifiers: 0
     // The entry the pick is on, for keys acting on it (extraKeys)
     readonly property var currentEntry: shown[list.currentIndex] ?? null
+    // What's in the field, for owners working on it as it's typed
+    readonly property alias typed: field.text
 
     // Move the pick, e.g. after the owner reordered the entries
     function select(index) {
@@ -673,6 +677,13 @@ Scope {
                     color: Theme.on_surface_variant
                     font.pixelSize: 14
                     font.weight: Font.Normal
+                }
+
+                Loader {
+                    width: parent.width
+                    active: root.footer !== null
+                    visible: active
+                    sourceComponent: root.footer
                 }
             }
         }
