@@ -345,7 +345,8 @@ Scope {
     }
 
     // VPN: NetworkManager's profiles, read from nmcli; picking one connects
-    // or disconnects it through `busy`
+    // or disconnects it through `busy`. A profile named "<anything> -
+    // <country>" shows that country's flag.
 
     // [{ name, active }]
     property var vpns: []
@@ -356,9 +357,50 @@ Scope {
                 key: `vpn:${v.name}`,
                 label: v.name,
                 icon: "network-vpn",
+                emoji: flagOf(v.name),
                 subtitle: vpnPending[v.name] ?? (v.active ? "Connected" : ""),
                 checked: v.active
             }))
+
+    // Country name (lowercase) → flag, from the emoji picker's data, plus
+    // the short names people write
+    property var flags: ({})
+    readonly property var countryAliases: ({
+            usa: "united states",
+            us: "united states",
+            america: "united states",
+            uk: "united kingdom",
+            britain: "united kingdom",
+            england: "united kingdom",
+            korea: "south korea",
+            uae: "united arab emirates",
+            "hong kong": "hong kong sar china"
+        })
+
+    function flagOf(name) {
+        // Longest first, so "x - Guinea-Bissau" isn't read as "Bissau"
+        const parts = name.split("-");
+        for (let i = 1; i < parts.length; i++) {
+            const country = parts.slice(i).join("-").trim().toLowerCase();
+            const flag = flags[countryAliases[country] ?? country];
+            if (flag)
+                return flag;
+        }
+        return "";
+    }
+
+    FileView {
+        path: Qt.resolvedUrl("../data/emoji.json").toString().replace("file://", "")
+        blockLoading: false
+        onLoaded: {
+            const flags = {};
+            for (const e of JSON.parse(text())) {
+                if (e.n.startsWith("flag: "))
+                    flags[e.n.slice(6).toLowerCase()] = e.c;
+            }
+            root.flags = flags;
+        }
+    }
 
     function toggleVpn(vpn) {
         if (!vpn || vpnPending[vpn.name])

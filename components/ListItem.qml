@@ -11,10 +11,12 @@ Rectangle {
     id: root
 
     // Leading icon: `icon` names one of ours, drawn in a tinted badge;
-    // `image` is any image (an app's own icon) shown as is. Neither gives a
-    // text-only row.
+    // `image` is any image (an app's own icon) shown as is; `emoji` an
+    // emoji (a country's flag) in the image's place. None gives a text-only
+    // row.
     property string icon
     property string image
+    property string emoji
     property string text
     property string subtitle
     property real iconSize: 20
@@ -135,7 +137,7 @@ Rectangle {
         y: (root.rowHeight - height) / 2
         width: root.imageSize
         height: root.imageSize
-        visible: root.image !== ""
+        visible: root.image !== "" && root.emoji === ""
         source: root.image
         sourceSize.width: 192
         sourceSize.height: 192
@@ -144,9 +146,24 @@ Rectangle {
         mipmap: true
     }
 
+    Text {
+        id: emoji
+
+        x: 18
+        y: (root.rowHeight - height) / 2
+        width: root.imageSize
+        height: root.imageSize
+        visible: root.emoji !== ""
+        text: root.emoji
+        font.family: "Noto Color Emoji"
+        font.pixelSize: root.imageSize * 0.8
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+    }
+
     Column {
-        anchors.left: badge.visible ? badge.right : image.visible ? image.right : parent.left
-        anchors.leftMargin: badge.visible || image.visible ? 12 : 18
+        anchors.left: badge.visible ? badge.right : image.visible ? image.right : emoji.visible ? emoji.right : parent.left
+        anchors.leftMargin: badge.visible || image.visible || emoji.visible ? 12 : 18
         anchors.right: trailingRow.left
         anchors.rightMargin: 12
         y: (root.rowHeight - height) / 2

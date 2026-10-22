@@ -20,7 +20,7 @@ import ".."
 // `keywords`. Ties keep the entries' own order.
 //
 // entries: [{ label, icon }, …] plus whatever the owner needs; icon is a
-// theme icon name or a path, and `subtitle`, `trailing` (a short state,
+// theme icon name or a path, `emoji` shows in its place, and `subtitle`, `trailing` (a short state,
 // e.g. "On"), `keys` (keycaps, e.g. ["Super", "Q"]), `trailingIcon` (one
 // of icons/, e.g. a pin), `checked` (a check mark) and `accent` (a row standing apart in the tertiary colour, as a
 // page's on/off switch) are optional. Long lists scroll
@@ -565,6 +565,7 @@ Scope {
                                 return "";
                             return name.startsWith("/") ? `file://${name}` : Quickshell.iconPath(name, true);
                         }
+                        emoji: modelData.emoji ?? ""
                         imageSize: big ? 96 : 32
 
                         Behavior on rowHeight {
