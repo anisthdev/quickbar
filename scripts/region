@@ -54,7 +54,9 @@ offer_text() {
 action="${1:-}"
 case "$action" in
 freeze)
-    grim -o "$2" "$3"
+    # Uncompressed: compressing a 1440p frame takes over a second, all of
+    # it before the screen dims
+    grim -l 0 -o "$2" "$3"
     exit
     ;;
 copy | edit | text | translate | lens) ;;
