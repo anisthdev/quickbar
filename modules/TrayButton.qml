@@ -2,6 +2,7 @@ import Quickshell
 import Quickshell.Services.SystemTray
 import Quickshell.Widgets
 import QtQuick
+import QtQuick.Effects
 import ".."
 import "../components"
 
@@ -114,6 +115,13 @@ Item {
             anchors.centerIn: parent
             source: root.shownIcon
             implicitSize: 18
+            // A one-colour (-symbolic) icon takes the bar's text colour, so
+            // it reads on whatever colours the wallpaper gives the bar
+            layer.enabled: root.shownIcon.includes("-symbolic")
+            layer.effect: MultiEffect {
+                colorization: 1.0
+                colorizationColor: Theme.on_tertiary_container
+            }
         }
 
         Badge {

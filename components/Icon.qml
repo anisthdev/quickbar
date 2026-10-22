@@ -2,9 +2,10 @@ import QtQuick
 import QtQuick.Effects
 import ".."
 
-// A white SVG from icons/ tinted to any colour. Colourising keeps the icon's
-// own alpha, so partly transparent parts (like the unlit bars of the Wi-Fi
-// icon) stay dimmed. Icons keep their aspect ratio; `size` is the height.
+// A white SVG from icons/ (or any image, given an absolute path as `name`)
+// tinted to any colour. Colourising keeps the icon's own alpha, so partly
+// transparent parts (like the unlit bars of the Wi-Fi icon) stay dimmed.
+// Icons keep their aspect ratio; `size` is the height.
 Item {
     id: root
 
@@ -20,7 +21,7 @@ Item {
         id: image
 
         anchors.verticalCenter: parent.verticalCenter
-        source: root.name ? Qt.resolvedUrl(`../icons/${root.name}.svg`) : ""
+        source: !root.name ? "" : root.name.startsWith("/") ? `file://${root.name}` : Qt.resolvedUrl(`../icons/${root.name}.svg`)
         sourceSize.height: Math.ceil(root.size)
         smooth: true
         opacity: root.color.a

@@ -34,7 +34,6 @@ PanelWindow {
         }
         Glance {}
         Workspaces {}
-        PhoneLive {}
         Mpd {}
         // The 5-hour window; the weekly one on hover
         Meter {
@@ -56,6 +55,7 @@ PanelWindow {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.gap
 
+        PhoneLive {}
         Tasks {}
         Downloads {}
         Tray {}

@@ -25,6 +25,10 @@ Item {
     onLiveChanged: if (live.length > 0)
         shown = live[0]
 
+    // The icon config.json gives the app in place of its own (see Config);
+    // the package is the second field of the notification key
+    readonly property string glyph: Config.liveIcons?.[shown?.key?.split("|")[1] ?? ""] ?? ""
+
     // Ticks while a timer chip is showing
     property date now: new Date()
 
@@ -153,6 +157,8 @@ Item {
     Pill {
         id: pill
 
+        // On the bar's right, so it grows and shrinks from its right edge
+        anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         padding: 10
         spacing: 7
@@ -160,12 +166,19 @@ Item {
         stateColor: Theme.on_primary_container
         clickable: true
         scale: Math.max(0, root.presence)
-        transformOrigin: Item.Left
+        transformOrigin: Item.Right
         onClicked: Quickshell.execDetached(["hyprctl", "eval", "require(\"scratchpads.phone\").toggle()"])
+
+        Icon {
+            visible: root.glyph !== ""
+            name: root.glyph
+            size: 20
+            color: Theme.on_primary_container
+        }
 
         Image {
             anchors.verticalCenter: parent.verticalCenter
-            visible: (root.shown?.icon ?? "") !== ""
+            visible: root.glyph === "" && (root.shown?.icon ?? "") !== ""
             source: root.shown?.icon ? `file://${root.shown.icon}` : ""
             sourceSize: Qt.size(20, 20)
             smooth: true
