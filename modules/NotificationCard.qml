@@ -321,10 +321,9 @@ Item {
         // At the bottom of the space it unfolds, so it rises into place
         y: root.height - height
         width: root.width
-        height: root.level ? levelBar.height : content.implicitHeight + 32
+        height: root.level ? levelBar.height + 2 * levelBar.x : content.implicitHeight + 32
         radius: Theme.cardRadius
-        // A level card is just its slider
-        color: root.level ? "transparent" : Theme.surface_container
+        color: Theme.surface_container
 
         HoverHandler {
             id: hover
@@ -595,14 +594,16 @@ Item {
         }
 
         // Volume or brightness: a thick level bar like the battery card's,
-        // as wide as a card, with the icon
+        // inset in the card so its corners follow the card's, with the icon
         // riding in the filled part and the number on the track
         LevelBar {
             id: levelBar
 
             visible: root.level
-            // As wide as the other cards
-            width: parent.width
+            // cardRadius - radius, so the corners are concentric
+            x: Theme.cardRadius - Theme.radius
+            y: x
+            width: parent.width - 2 * x
             height: 52
             value: Math.max(0, root.progress) / 100
             minFill: height
