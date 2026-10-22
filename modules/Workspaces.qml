@@ -31,7 +31,7 @@ Pill {
         return i >= 0 && i < count && HyprState.windows(i + 1) > 0;
     }
 
-    function focus(target) {
+    function goTo(target) {
         // Hyprland's Lua config takes dispatchers as Lua expressions
         Hyprland.dispatch(`hl.dsp.focus({ workspace = ${typeof target === "string" ? `"${target}"` : target} })`);
     }
@@ -114,7 +114,7 @@ Pill {
             onWheel: event => {
                 pending += event.angleDelta.y;
                 while (Math.abs(pending) >= 120) {
-                    root.focus(pending > 0 ? "e-1" : "e+1");
+                    root.goTo(pending > 0 ? "e-1" : "e+1");
                     pending -= Math.sign(pending) * 120;
                 }
             }
@@ -200,7 +200,7 @@ Pill {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.focus(slot.index + 1)
+                    onClicked: root.goTo(slot.index + 1)
                 }
             }
         }
