@@ -19,6 +19,9 @@ Singleton {
     property string activeTitle: ""
     // id -> { windows, urgent }
     property var workspaces: ({})
+    // Monitor name -> the scratchpad (special workspace) shown on it,
+    // without the "special:" prefix; absent when none is
+    property var specials: ({})
 
     function windows(id) {
         return workspaces[id]?.windows ?? 0;
@@ -52,6 +55,18 @@ Singleton {
                         root.activeTitle = event.data.slice(comma + 1);
                     return;
                 }
+            // "id,name,monitor"; an empty name when it's hidden
+            case "activespecialv2":
+                {
+                    const [, name, monitor] = event.data.split(",");
+                    const next = Object.assign({}, root.specials);
+                    if (name)
+                        next[monitor] = name.replace(/^special:/, "");
+                    else
+                        delete next[monitor];
+                    root.specials = next;
+                    return;
+                }
             case "workspacev2":
             case "focusedmonv2":
             case "createworkspacev2":
@@ -83,15 +98,16 @@ Singleton {
     Process {
         id: query
         running: true
-        command: ["sh", "-c", "hyprctl -j workspaces; echo; hyprctl -j activeworkspace; echo; hyprctl -j clients; echo; hyprctl -j activewindow"]
+        command: ["sh", "-c", "hyprctl -j workspaces; echo; hyprctl -j activeworkspace; echo; hyprctl -j clients; echo; hyprctl -j activewindow; echo; hyprctl -j monitors"]
         stdout: StdioCollector {
             onStreamFinished: {
-                // Four JSON documents, separated by the echoed newlines
+                // Five JSON documents, separated by the echoed newlines
                 const parts = text.split(/\n(?=[\[{])/);
                 try {
                     const list = JSON.parse(parts[0]);
                     const active = JSON.parse(parts[1]);
                     const clients = JSON.parse(parts[2]);
+                    const monitors = JSON.parse(parts[4]);
                     // Only needed once: events keep it current after that
                     if (!refresh.seeded) {
                         const win = JSON.parse(parts[3]);
@@ -116,6 +132,11 @@ Singleton {
                             refresh.urgentAddress = "";
                     }
                     root.workspaces = next;
+                    const specials = {};
+                    for (const m of monitors)
+                        if (m.specialWorkspace.name)
+                            specials[m.name] = m.specialWorkspace.name.replace(/^special:/, "");
+                    root.specials = specials;
                     root.focusedId = active.id;
                 } catch (e) {
                     console.warn("HyprState: bad hyprctl output", e);

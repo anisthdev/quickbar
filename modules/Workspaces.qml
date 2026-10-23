@@ -1,3 +1,4 @@
+import Quickshell
 import Quickshell.Hyprland
 import QtQuick
 import ".."
@@ -8,7 +9,9 @@ import "../components"
 // ones are a small dot. The active one is a filled pill (a circle on an
 // empty workspace) that travels between slots, its leading edge first so
 // it stretches and snaps, as Material 3 Expressive tab indicators do.
-// Scroll to step through them.
+// Scroll to step through them. A scratchpad open on this bar's monitor
+// shows after a separator, as its icon from Config.scratchIcons; clicking
+// it hides the scratchpad.
 Pill {
     id: root
 
@@ -26,6 +29,9 @@ Pill {
     // The bar's corner radius scaled to the slots, so they're the same
     // shape as the pill around them
     readonly property real cornerRadius: Theme.radius * slotHeight / Theme.barHeight
+
+    // The scratchpad open on this monitor, if any
+    readonly property string scratch: HyprState.specials[QsWindow.window?.screen?.name ?? ""] ?? ""
 
     function occupied(i) {
         return i >= 0 && i < count && HyprState.windows(i + 1) > 0;
@@ -283,6 +289,92 @@ Pill {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    Item {
+        id: scratchSlot
+
+        // Set, not bound, so the icon stays while the slot fades out
+        property string name
+
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.scratch ? separator.width + 12 + root.slotWidth : 0
+        height: root.slotHeight
+        clip: true
+
+        Connections {
+            target: root
+            function onScratchChanged() {
+                if (root.scratch)
+                    scratchSlot.name = root.scratch;
+            }
+        }
+        Component.onCompleted: name = root.scratch
+
+        Rectangle {
+            id: separator
+
+            x: 6
+            anchors.verticalCenter: parent.verticalCenter
+            width: 1
+            height: parent.height / 2
+            color: Theme.outline
+            opacity: 0.5
+        }
+
+        // Always the open one, so always filled; tertiary, as it floats
+        // over the active workspace rather than replacing it
+        Rectangle {
+            id: scratchFill
+
+            x: separator.x + separator.width + 6
+            width: root.slotWidth
+            height: root.slotHeight
+            radius: root.cornerRadius
+            color: Theme.tertiary_container
+            scale: root.scratch ? 1 : 0.5
+            opacity: root.scratch ? 1 : 0
+
+            Behavior on scale {
+                NumberAnimation {
+                    duration: Theme.animNormal
+                    easing.type: Easing.OutBack
+                }
+            }
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Theme.animFast
+                }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                color: Theme.on_tertiary_container
+                opacity: scratchMouse.pressed ? 0.12 : scratchMouse.containsMouse ? 0.08 : 0
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Theme.animFast
+                    }
+                }
+            }
+
+            Icon {
+                anchors.centerIn: parent
+                name: Config.scratchIcons?.[scratchSlot.name] || "scratchpad"
+                color: Theme.on_tertiary_container
+            }
+
+            MouseArea {
+                id: scratchMouse
+
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: Hyprland.dispatch(`hl.dsp.workspace.toggle_special("${scratchSlot.name}")`)
             }
         }
     }

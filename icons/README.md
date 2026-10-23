@@ -22,7 +22,9 @@ Others: `archlinux` is from Simple Icons, `keyboard_command_key` from
 Material Symbols Rounded, `close` (notifications) is Material Icons'
 close path with the same 0.6 stroke as the converted ones, and `search`,
 `download`, `arrow_upward` and `arrow_downward` (the media search) are
-Material Symbols. All icons are white; the bar tints them.
+Material Symbols, as is `scratchpad` (picture_in_picture, Rounded),
+the workspaces' fallback for a scratchpad with no icon set, and `terminal`,
+`sticky_note_2` and `auto_awesome` for the scratchpads. All icons are white; the bar tints them.
 
 Brightness icons (volume and brightness notifications), from
 packages/SystemUI/res/drawable; these are Lottie exports, whose bare "c"

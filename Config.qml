@@ -14,6 +14,10 @@ Singleton {
     // shown on their Live Update chip instead: a name from icons/ or the
     // path to an image (e.g. a Papirus symbolic icon), tinted either way
     property alias liveIcons: adapter.liveIcons
+    // Scratchpads (special workspaces) as name → icon shown for them in the
+    // workspaces while one is open, in the same form as liveIcons; others
+    // get a generic one
+    property alias scratchIcons: adapter.scratchIcons
 
     FileView {
         path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickbar/config.json"
@@ -25,6 +29,7 @@ Singleton {
             id: adapter
 
             property var liveIcons: ({})
+            property var scratchIcons: ({})
         }
     }
 }
