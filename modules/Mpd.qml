@@ -67,7 +67,8 @@ Pill {
     Process {
         id: idle
 
-        command: ["mpc", "idleloop", "player", "playlist", "options"]
+        // Ended with the shell, or killing it would leave the loop behind
+        command: ["setpriv", "--pdeathsig", "TERM", "mpc", "idleloop", "player", "playlist", "options"]
         running: true
         stdout: SplitParser {
             onRead: query.running = true
