@@ -1,4 +1,4 @@
-import Quickshell.Io
+import Quickshell
 import Quickshell.Services.UPower
 import QtQuick
 import ".."
@@ -63,12 +63,13 @@ Item {
         owner: root
     }
 
-    // `qs -p <dir> ipc call battery toggle`, e.g. from a Hyprland keybind
-    IpcHandler {
-        target: "battery"
-
-        function toggle(): void {
-            card.toggle();
+    // `qs -p <dir> ipc call battery toggle`, through BarIpc: only the bar on
+    // the focused monitor opens it
+    Connections {
+        target: BarIpc
+        function onToggled(name, monitor) {
+            if (name === "battery" && monitor === root.QsWindow.window?.screen?.name)
+                card.toggle();
         }
     }
 }

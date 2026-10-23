@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.Io
 import QtQuick
 import ".."
 import "../components"
@@ -108,12 +107,13 @@ Pill {
         owner: root
     }
 
-    // `qs -p <dir> ipc call calendar toggle`, e.g. from a Hyprland keybind
-    IpcHandler {
-        target: "calendar"
-
-        function toggle(): void {
-            menu.toggle();
+    // `qs -p <dir> ipc call calendar toggle`, through BarIpc: only the bar on
+    // the focused monitor opens it
+    Connections {
+        target: BarIpc
+        function onToggled(name, monitor) {
+            if (name === "calendar" && monitor === root.QsWindow.window?.screen?.name)
+                menu.toggle();
         }
     }
 }

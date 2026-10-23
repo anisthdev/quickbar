@@ -152,12 +152,13 @@ Pill {
         player: root
     }
 
-    // `qs -p <dir> ipc call media toggle`, e.g. from a Hyprland keybind
-    IpcHandler {
-        target: "media"
-
-        function toggle(): void {
-            card.toggle();
+    // `qs -p <dir> ipc call media toggle`, through BarIpc: only the bar on
+    // the focused monitor opens it
+    Connections {
+        target: BarIpc
+        function onToggled(name, monitor) {
+            if (name === "media" && monitor === root.QsWindow.window?.screen?.name)
+                card.toggle();
         }
     }
 }

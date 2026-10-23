@@ -1,4 +1,4 @@
-import Quickshell.Io
+import Quickshell
 import QtQuick
 import ".."
 import "../components"
@@ -62,12 +62,13 @@ Pill {
         onOpenChanged: DownloadState.watching = open
     }
 
-    // `qs -p <dir> ipc call downloads toggle`
-    IpcHandler {
-        target: "downloads"
-
-        function toggle(): void {
-            card.toggle();
+    // `qs -p <dir> ipc call downloads toggle`, through BarIpc: only the bar on
+    // the focused monitor opens it
+    Connections {
+        target: BarIpc
+        function onToggled(name, monitor) {
+            if (name === "downloads" && monitor === root.QsWindow.window?.screen?.name)
+                card.toggle();
         }
     }
 }

@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.Io
 import Quickshell.Services.Pipewire
 import QtQuick
 import ".."
@@ -56,14 +55,5 @@ StatusItem {
         // What the details would show, when they're hidden
         shown: root.hovered && !root.open && !Settings.showStatusDetails
         text: root.sinkName ? `${root.sinkName} · ${root.level}%` : `${root.level}%`
-    }
-
-    // `qs -p <dir> ipc call audio toggle`, e.g. from a Hyprland keybind
-    IpcHandler {
-        target: "audio"
-
-        function toggle(): void {
-            Panels.controlPanel?.toggle("sound");
-        }
     }
 }

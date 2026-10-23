@@ -1,6 +1,5 @@
 import Quickshell
 import Quickshell.Bluetooth
-import Quickshell.Io
 import QtQuick
 import ".."
 import "../components"
@@ -30,14 +29,5 @@ StatusItem {
         owner: root
         shown: root.hovered && !root.open && !Settings.showStatusDetails
         text: !root.powered ? "Bluetooth off" : root.connected === 1 ? "1 device connected" : `${root.connected} devices connected`
-    }
-
-    // `qs -p <dir> ipc call bluetooth toggle`, e.g. from a Hyprland keybind
-    IpcHandler {
-        target: "bluetooth"
-
-        function toggle(): void {
-            Panels.controlPanel?.toggle("bluetooth");
-        }
     }
 }

@@ -13,6 +13,8 @@ Singleton {
     id: root
 
     property int focusedId: 1
+    // The focused monitor's name, e.g. "eDP-1"
+    property string focusedMonitor: ""
     // The focused window; an empty address when the workspace is empty
     property string activeAddress: ""
     property string activeClass: ""
@@ -67,8 +69,11 @@ Singleton {
                     root.specials = next;
                     return;
                 }
-            case "workspacev2":
+            // "monitor,workspace id"; the query below catches up the rest
             case "focusedmonv2":
+                root.focusedMonitor = event.data.split(",")[0];
+                break;
+            case "workspacev2":
             case "createworkspacev2":
             case "destroyworkspacev2":
             case "moveworkspacev2":
@@ -138,6 +143,7 @@ Singleton {
                             specials[m.name] = m.specialWorkspace.name.replace(/^special:/, "");
                     root.specials = specials;
                     root.focusedId = active.id;
+                    root.focusedMonitor = active.monitor;
                 } catch (e) {
                     console.warn("HyprState: bad hyprctl output", e);
                 }

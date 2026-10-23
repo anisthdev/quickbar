@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.Io
 import Quickshell.Networking
 import QtQuick
 import ".."
@@ -36,14 +35,5 @@ StatusItem {
         owner: root
         shown: root.hovered && !root.open && !Settings.showStatusDetails
         text: root.label
-    }
-
-    // `qs -p <dir> ipc call wifi toggle`, e.g. from a Hyprland keybind
-    IpcHandler {
-        target: "wifi"
-
-        function toggle(): void {
-            Panels.controlPanel?.toggle("wifi");
-        }
     }
 }
