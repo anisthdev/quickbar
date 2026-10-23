@@ -924,7 +924,9 @@ Scope {
                             Image {
                                 anchors.fill: parent
                                 visible: (card.album.covers?.length ?? 0) < 4
-                                source: card.album.cover ? "file://" + card.album.cover : ""
+                                // Only while shown, so closing frees the
+                                // decoded covers
+                                source: window.visible && card.album.cover ? "file://" + card.album.cover : ""
                                 sourceSize.width: root.coverSize * 2
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
@@ -948,7 +950,7 @@ Scope {
 
                                         width: root.coverSize / 2
                                         height: root.coverSize / 2
-                                        source: "file://" + modelData
+                                        source: window.visible ? "file://" + modelData : ""
                                         sourceSize.width: root.coverSize
                                         fillMode: Image.PreserveAspectCrop
                                         asynchronous: true

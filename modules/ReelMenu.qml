@@ -617,7 +617,9 @@ Scope {
 
                             Image {
                                 anchors.fill: parent
-                                source: card.item.poster ? "file://" + card.item.poster : ""
+                                // Only while shown, so closing frees the
+                                // decoded posters
+                                source: window.visible && card.item.poster ? "file://" + card.item.poster : ""
                                 sourceSize.width: 440
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true

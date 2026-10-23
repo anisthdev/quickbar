@@ -413,7 +413,9 @@ Scope {
 
                         Image {
                             anchors.fill: parent
-                            source: `file://${tile.modelData.thumb}`
+                            // Only while shown, so closing frees the
+                            // decoded thumbnails
+                            source: window.visible ? `file://${tile.modelData.thumb}` : ""
                             sourceSize.width: 480
                             sourceSize.height: 270
                             fillMode: Image.PreserveAspectCrop

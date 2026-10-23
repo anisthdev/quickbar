@@ -561,7 +561,9 @@ Scope {
                         animateHeight: false
                         image: {
                             const name = modelData.icon ?? "";
-                            if (name === "")
+                            // Only while shown, so closing frees the
+                            // decoded icons and previews
+                            if (name === "" || !window.visible)
                                 return "";
                             return name.startsWith("/") ? `file://${name}` : Quickshell.iconPath(name, true);
                         }
