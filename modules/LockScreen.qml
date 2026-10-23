@@ -18,6 +18,9 @@ import ".."
 // `preview` shows the same screen in an ordinary window without locking
 // anything, to see it; a right password or finger closes it too.
 //
+// Started with QUICKBAR_BOOT=1 (Hyprland's autostart), it locks at once;
+// only on the first load, not on a reload.
+//
 // If quickbar dies while locked, Hyprland keeps the screen locked; from a
 // TTY, `hyprctl --instance 0 dispatch 'hl.dsp.exec_cmd("hyprlock")'` puts
 // hyprlock in its place (allow_session_lock_restore).
@@ -29,6 +32,9 @@ Scope {
 
     property bool locked: false
     property bool previewing: false
+    // Locked at the start of the session, until the lock has shown (or
+    // been unlocked first); the bars wait for it
+    property bool booting: false
     readonly property bool active: locked || previewing
 
     // The screens' show and hide, 0 to 1
@@ -129,6 +135,7 @@ Scope {
     }
 
     function finish() {
+        booting = false;
         clear();
         locked = false;
         previewing = false;
@@ -269,6 +276,7 @@ Scope {
         duration: 450
         easing.type: Easing.BezierSpline
         easing.bezierCurve: Theme.emphasizedDecel
+        onFinished: root.booting = false
     }
 
     NumberAnimation {
@@ -281,6 +289,33 @@ Scope {
         easing.type: Easing.BezierSpline
         easing.bezierCurve: Theme.emphasizedAccel
         onFinished: root.finish()
+    }
+
+    // At boot, scripts/boot starts awww-daemon only once locked: its
+    // wallpaper is asked for until it answers, and fades in when it does
+    Timer {
+        interval: 200
+        repeat: true
+        running: root.locked && root.wallpaper === ""
+        onTriggered: wallpaperQuery.running = true
+    }
+
+    PersistentProperties {
+        id: session
+
+        reloadableId: "lockScreenSession"
+
+        // Set once the session's first load has locked, so a reload
+        // doesn't lock again
+        property bool started: false
+
+        onLoaded: {
+            if (!started && Quickshell.env("QUICKBAR_BOOT") === "1") {
+                root.booting = true;
+                root.lock();
+            }
+            started = true;
+        }
     }
 
     // `awww query`: "…: eDP-1: …, currently displaying: image: <path>"

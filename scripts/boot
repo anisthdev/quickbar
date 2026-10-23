@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# The session's first seconds, run by Hyprland's autostart: the wallpaper
+# daemon, once quickbar's lock screen is up (QUICKBAR_BOOT, see
+# LockScreen.qml). Started any sooner, it would show the wallpaper before
+# the lock.
+set -uo pipefail
+
+here="$(dirname "$(realpath "$0")")"
+
+# Until the lock screen is up, or 15 s if quickbar never answers
+for _ in $(seq 300); do
+    [ "$(qs -p "$here/.." ipc call lock isLocked 2>/dev/null)" = true ] && break
+    sleep 0.05
+done
+
+# The lock surfaces drawn over everything first; the lock screen asks for
+# this wallpaper until it answers
+sleep 0.5
+exec uwsm app -- awww-daemon

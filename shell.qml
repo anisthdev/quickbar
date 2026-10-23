@@ -26,7 +26,8 @@ ShellRoot {
         Bar {
             required property var modelData
             screen: modelData
-            visible: root.barShown
+            // Not over the boot logo before the lock screen is up
+            visible: root.barShown && !lockScreen.booting
             apps: appLauncher
         }
     }
@@ -94,6 +95,7 @@ ShellRoot {
     EmojiPicker {}
 
     LockScreen {
+        id: lockScreen
         keepAwake: keepAwake
     }
 
