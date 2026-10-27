@@ -60,7 +60,7 @@ Scope {
 
         title: "Glyphs"
         placeholder: "Search Nerd Font glyphs…"
-        cellFont: "JetBrainsMono Nerd Font"
+        cellFont: "Symbols Nerd Font"
         entries: root.shown
         footerLeft: current?.name ?? (root.glyphs.length > 0 ? "Nothing matches" : "")
         footerRight: current ? `U+${current.code.toUpperCase()}` : ""
