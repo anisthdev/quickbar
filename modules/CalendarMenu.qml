@@ -7,6 +7,11 @@ import "../components"
 // headline, a month bar, and a fixed six-week grid (so the menu never
 // changes height) with today filled. The ‹ › buttons or the scroll wheel
 // change month, sliding the grid in from that side; "Today" jumps back.
+// Days with calendar events (Agenda) have a dot; clicking a day lists its
+// events under the grid, today's at first, and clicking an event opens it
+// out: the whole title, times, place and notes (their links clickable), and
+// buttons to join its call, see it in Google Calendar or read the email it
+// came from.
 // Below it the timer's presets (TimerState); while one runs, it's at the
 // top instead, over the date, with pause, five more minutes and stop.
 Dropdown {
@@ -17,6 +22,13 @@ Dropdown {
     readonly property int firstDay: locale.firstDayOfWeek % 7
 
     property date today: clock.date
+    // The day whose events are listed
+    property date selected: today
+    readonly property var selectedEvents: Agenda.on(selected)
+    // The event opened out, by its place in the list; -1 for none
+    property int expanded: -1
+
+    onSelectedChanged: expanded = -1
     // First day of the month on show
     property date month: new Date(today.getFullYear(), today.getMonth(), 1)
     readonly property bool onCurrentMonth: month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth()
@@ -33,6 +45,22 @@ Dropdown {
 
     function sameDay(a, b) {
         return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+
+    // An event's notes as styled text, each URL a link showing its host
+    function linkify(text) {
+        const esc = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return text.split(/(https?:\/\/[^\s<>"]+)/).map((part, i) => {
+            if (i % 2 === 0)
+                return esc(part).replace(/\n/g, "<br>");
+            const host = part.replace(/^https?:\/\/(www\.)?/, "").split(/[/?#]/)[0];
+            return `<a href="${esc(part)}">${esc(host)}</a>`;
+        }).join("");
+    }
+
+    function openLink(url) {
+        Quickshell.execDetached(["xdg-open", url]);
+        open = false;
     }
 
     function showMonth(offset) {
@@ -73,8 +101,12 @@ Dropdown {
         return false;
     }
 
-    onOpenChanged: if (open)
-        month = new Date(today.getFullYear(), today.getMonth(), 1)
+    onOpenChanged: if (open) {
+        month = new Date(today.getFullYear(), today.getMonth(), 1);
+        selected = today;
+        expanded = -1;
+        Agenda.refreshIfStale();
+    }
 
     SystemClock {
         id: clock
@@ -349,6 +381,8 @@ Dropdown {
                     required property date modelData
                     readonly property bool isToday: root.sameDay(modelData, root.today)
                     readonly property bool inMonth: modelData.getMonth() === root.month.getMonth()
+                    readonly property bool isSelected: !isToday && root.sameDay(modelData, root.selected)
+                    readonly property bool busy: Agenda.on(modelData).length > 0
 
                     width: 284 / 7
                     height: 40
@@ -368,6 +402,31 @@ Dropdown {
                         }
                     }
 
+                    // The day picked, if not today
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 36
+                        height: 36
+                        radius: 18
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Theme.primary
+                        visible: cell.isSelected
+                    }
+
+                    // Has events
+                    Rectangle {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 7
+                        width: 4
+                        height: 4
+                        radius: 2
+                        color: cell.isToday ? Theme.on_primary : Theme.primary
+                        opacity: cell.inMonth || cell.isToday ? 1 : 0.38
+                        visible: cell.busy
+                    }
+
                     Label {
                         anchors.centerIn: parent
                         text: cell.modelData.getDate()
@@ -382,6 +441,8 @@ Dropdown {
 
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.selected = cell.modelData
                     }
                 }
             }
@@ -400,6 +461,281 @@ Dropdown {
             target: gridArea
             shown: root.open
             index: 3
+        }
+    }
+
+    // The picked day's events: the time (or all day) and title of each
+    Column {
+        id: eventsSection
+
+        visible: Agenda.enabled
+        width: 284
+        topPadding: 14
+        spacing: 2
+
+        Label {
+            anchors.verticalCenter: undefined
+            leftPadding: 4
+            bottomPadding: 6
+            text: {
+                const d = Math.round((new Date(root.selected.getFullYear(), root.selected.getMonth(), root.selected.getDate()) - new Date(root.today.getFullYear(), root.today.getMonth(), root.today.getDate())) / 86400000);
+                return d === 0 ? "Today" : d === 1 ? "Tomorrow" : d === -1 ? "Yesterday" : root.locale.toString(root.selected, "dddd, MMM d");
+            }
+            color: Theme.on_surface_variant
+            font.pixelSize: 13
+        }
+
+        Label {
+            anchors.verticalCenter: undefined
+            visible: root.selectedEvents.length === 0
+            leftPadding: 4
+            text: "No events"
+            color: Theme.on_surface_variant
+            opacity: 0.6
+            font.pixelSize: 13
+        }
+
+        Repeater {
+            // At most five, so the menu stays in reach
+            model: root.selectedEvents.slice(0, 5)
+
+            Rectangle {
+                id: event
+
+                required property var modelData
+                required property int index
+                readonly property bool open: root.expanded === index
+                readonly property var e: modelData
+
+                width: 284
+                height: open ? details.implicitHeight + 20 : 36
+                radius: Theme.radius
+                clip: true
+                color: eventMouse.containsMouse && !open ? Theme.surface_container_highest : Theme.surface_container_high
+
+                Behavior on height {
+                    NumberAnimation {
+                        duration: Theme.animNormal
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Theme.emphasizedDecel
+                    }
+                }
+
+                MouseArea {
+                    id: eventMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.expanded = event.open ? -1 : event.index
+                }
+
+                Rectangle {
+                    x: 10
+                    y: 9
+                    width: 3
+                    height: event.open ? event.height - 18 : 18
+                    radius: 1.5
+                    color: Theme.primary
+                }
+
+                // Shut: the time and the title on one line
+                Item {
+                    width: parent.width
+                    height: 36
+                    opacity: event.open ? 0 : 1
+                    visible: opacity > 0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Theme.animFast
+                        }
+                    }
+
+                    Label {
+                        id: eventTime
+
+                        anchors.left: parent.left
+                        anchors.leftMargin: 22
+                        width: 82
+                        text: event.e.allDay ? "All day" : event.e.end && event.e.end !== event.e.start ? `${event.e.start}–${event.e.end}` : event.e.start
+                        color: Theme.on_surface_variant
+                        font.pixelSize: 12
+                        font.features: {
+                            "tnum": 1
+                        }
+                    }
+
+                    Label {
+                        anchors.left: eventTime.right
+                        anchors.right: parent.right
+                        anchors.rightMargin: 12
+                        text: event.e.title
+                        elide: Text.ElideRight
+                        color: Theme.on_surface
+                        font.pixelSize: 13
+                    }
+                }
+
+                // Open: all of it
+                Column {
+                    id: details
+
+                    x: 22
+                    y: 10
+                    width: parent.width - 34
+                    spacing: 4
+                    opacity: event.open ? 1 : 0
+                    visible: opacity > 0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Theme.animFast
+                        }
+                    }
+
+                    Label {
+                        anchors.verticalCenter: undefined
+                        width: parent.width
+                        text: event.e.title
+                        wrapMode: Text.Wrap
+                        color: Theme.on_surface
+                        font.pixelSize: 14
+                    }
+
+                    Label {
+                        anchors.verticalCenter: undefined
+                        width: parent.width
+                        text: {
+                            if (event.e.allDay)
+                                return "All day";
+                            const later = event.e.endDays === 1 ? " next day" : event.e.endDays > 1 ? ` +${event.e.endDays} days` : "";
+                            return event.e.end ? `${event.e.start} – ${event.e.end}${later}` : event.e.start;
+                        }
+                        color: Theme.on_surface_variant
+                        font.pixelSize: 12
+                        font.features: {
+                            "tnum": 1
+                        }
+                    }
+
+                    Row {
+                        visible: event.e.location !== ""
+                        width: parent.width
+                        spacing: 6
+
+                        Icon {
+                            anchors.verticalCenter: undefined
+                            y: 1
+                            name: "wx_location_on"
+                            size: 13
+                            color: Theme.on_surface_variant
+                        }
+
+                        Label {
+                            anchors.verticalCenter: undefined
+                            width: parent.width - 19
+                            text: event.e.location
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 3
+                            elide: Text.ElideRight
+                            color: Theme.on_surface_variant
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    Label {
+                        anchors.verticalCenter: undefined
+                        visible: event.e.description !== ""
+                        width: parent.width
+                        topPadding: 4
+                        text: root.linkify(event.e.description)
+                        textFormat: Text.StyledText
+                        linkColor: Theme.primary
+                        onLinkActivated: link => root.openLink(link)
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 8
+                        elide: Text.ElideRight
+                        color: Theme.on_surface_variant
+                        font.pixelSize: 12
+                    }
+
+                    Flow {
+                        visible: event.e.meeting !== "" || event.e.link !== "" || event.e.email !== ""
+                        width: parent.width
+                        topPadding: 6
+                        spacing: 6
+
+                        Repeater {
+                            model: [
+                                {
+                                    label: "Join",
+                                    url: event.e.meeting
+                                },
+                                {
+                                    label: "Open in Calendar",
+                                    url: event.e.link
+                                },
+                                {
+                                    label: "Open email",
+                                    url: event.e.email
+                                }
+                            ].filter(l => l.url)
+
+                            Rectangle {
+                                id: linkChip
+
+                                required property var modelData
+
+                                width: linkLabel.implicitWidth + 24
+                                height: 28
+                                radius: 14
+                                color: linkMouse.containsMouse ? Theme.primary : Theme.primary_container
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: Theme.animFast
+                                    }
+                                }
+
+                                Label {
+                                    id: linkLabel
+
+                                    anchors.centerIn: parent
+                                    text: linkChip.modelData.label
+                                    color: linkMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
+                                    font.pixelSize: 12
+                                }
+
+                                MouseArea {
+                                    id: linkMouse
+
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.openLink(linkChip.modelData.url)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Label {
+            anchors.verticalCenter: undefined
+            visible: root.selectedEvents.length > 5
+            leftPadding: 4
+            topPadding: 2
+            text: `${root.selectedEvents.length - 5} more`
+            color: Theme.on_surface_variant
+            font.pixelSize: 12
+        }
+
+        MenuReveal {
+            target: eventsSection
+            shown: root.open
+            index: 4
         }
     }
 
@@ -482,7 +818,7 @@ Dropdown {
         MenuReveal {
             target: timerSection
             shown: root.open
-            index: 4
+            index: 5
         }
     }
 }

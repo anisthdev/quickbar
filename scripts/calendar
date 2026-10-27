@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Calendar events for the clock's dropdown (modules/CalendarMenu.qml, via
+Agenda.qml), from iCal feeds such as Google Calendar's secret address.
+
+The feeds are listed in ~/.config/quickbar/calendars, one URL a line (blank
+lines and # comments skipped). Each is fetched and kept in
+~/.cache/quickbar/calendar/, so a failed fetch falls back on the last one.
+Events from two months back to a year ahead, repeats expanded, are written
+to ~/.cache/quickbar/calendar.json:
+
+  {"updated": EPOCH, "days": {"YYYY-MM-DD": [{title, start, end, endDays,
+                                               allDay, location, description,
+                                               link, email, meeting}, ...],
+                                               ...}}
+
+start and end are local "HH:MM", or null for an all-day event, which is
+listed on each day it covers; endDays is how many days after the start a
+timed event ends. description is plain text (Google's HTML stripped). link
+opens the event in Google Calendar, for Google's own events, else is "".
+For events Gmail made from an email (trains, hotels), whose description is
+only Google's boilerplate, email is that email's link and description "".
+meeting is the call to join (Meet, Teams, Zoom, ...), else "".
+Each day's events are all-day first, then by start.
+"""
+import base64
+import datetime as dt
+import hashlib
+import html
+import json
+import os
+import re
+import sys
+import time
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+import icalendar
+import recurring_ical_events
+
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "quickbar" / "calendars"
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "quickbar"
+FEEDS = CACHE / "calendar"
+OUT = CACHE / "calendar.json"
+MEETING = re.compile(r"https://(?:meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|[\w.-]*zoom\.us|[\w.-]*webex\.com)/\S+")
+
+
+def urls():
+    try:
+        lines = CONFIG.read_text().splitlines()
+    except OSError:
+        return []
+    return [l.strip() for l in lines if l.strip() and not l.strip().startswith("#")]
+
+
+def feed(url):
+    """The feed's text, fetched or else the last one kept."""
+    kept = FEEDS / (hashlib.sha256(url.encode()).hexdigest()[:16] + ".ics")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "quickbar"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = r.read()
+        FEEDS.mkdir(parents=True, exist_ok=True)
+        tmp = kept.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_bytes(data)
+        tmp.replace(kept)
+        return data
+    except OSError:
+        try:
+            return kept.read_bytes()
+        except OSError:
+            return None
+
+
+def local(value):
+    """A DTSTART/DTEND as a local datetime, or a date for all-day."""
+    if isinstance(value, dt.datetime):
+        return value.astimezone() if value.tzinfo else value
+    return value
+
+
+def calendar_id(url):
+    """Google's calendar ID, from a .../calendar/ical/ID/private-.../basic.ics
+    address."""
+    m = re.search(r"/calendar/ical/([^/]+)/", url)
+    return urllib.parse.unquote(m.group(1)) if m else None
+
+
+def plain(text):
+    """Google's HTML descriptions as text: line breaks kept, tags dropped,
+    links as "text URL" (or the bare URL)."""
+    def anchor(m):
+        url, label = m.group(1), re.sub(r"<[^>]+>", "", m.group(2)).strip()
+        return url if not label or label == url else f"{label} {url}"
+    text = re.sub(r"<a\s[^>]*href=\"([^\"]+)\"[^>]*>(.*?)</a>", anchor, text, flags=re.I | re.S)
+    # Plain-text mail's "label<URL>"
+    text = re.sub(r"(\S?)<(https?://[^>\s]+)>", lambda m: f"{m.group(1)} {m.group(2)}" if m.group(1) else m.group(2), text)
+    text = re.sub(r"<br\s*/?>|</p>|</li>", "\n", text, flags=re.I)
+    text = html.unescape(re.sub(r"</?[a-zA-Z][^>]*>", "", text))
+    text = re.sub(r"[ \t]+", " ", text)
+    return re.sub(r"\n\s*\n+", "\n\n", text).strip()
+
+
+def from_gmail(description):
+    """The email an event was made from, and the description left without
+    Google's boilerplate about it."""
+    if "created from an email" not in description:
+        return "", description
+    m = re.search(r"https://mail\.google\.com/\S+", description)
+    return (m.group(0) if m else ""), ""
+
+
+def link(event, start, cal):
+    """The event's page in Google Calendar: eid is base64 of the event's ID
+    (a repeat's has its start appended) and the calendar's."""
+    uid = str(event.get("UID", ""))
+    if not cal or not uid.endswith("@google.com"):
+        return ""
+    eid = uid[:-len("@google.com")]
+    if event.get("RRULE") or event.get("RECURRENCE-ID"):
+        if isinstance(start, dt.datetime):
+            eid += "_" + start.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        else:
+            eid += "_" + start.strftime("%Y%m%d")
+    eid = base64.urlsafe_b64encode(f"{eid} {cal}".encode()).decode().rstrip("=")
+    return f"https://calendar.google.com/calendar/event?eid={eid}"
+
+
+def add(days, event, first, last, cal):
+    start = local(event.get("DTSTART").dt)
+    end = event.get("DTEND")
+    end = local(end.dt) if end else None
+    email, description = from_gmail(plain(str(event.get("DESCRIPTION", ""))))
+    meeting = MEETING.search(" ".join([str(event.get("X-GOOGLE-CONFERENCE", "")), str(event.get("LOCATION", "")), description]))
+    entry = {
+        "title": str(event.get("SUMMARY", "")).strip() or "(No title)",
+        "location": str(event.get("LOCATION", "")).strip(),
+        "description": description[:1000],
+        "link": link(event, start, cal),
+        "email": email,
+        "meeting": meeting.group(0) if meeting else "",
+    }
+    if isinstance(start, dt.datetime):
+        entry.update(start=start.strftime("%H:%M"), end=end.strftime("%H:%M") if end else None,
+                     endDays=(end.date() - start.date()).days if end else 0, allDay=False)
+        days.setdefault(start.date().isoformat(), []).append(entry)
+        return
+    # All-day: DTEND is the day after the last
+    end = end if isinstance(end, dt.date) and end > start else start + dt.timedelta(days=1)
+    entry.update(start=None, end=None, endDays=0, allDay=True)
+    day = max(start, first)
+    while day < end and day <= last:
+        days.setdefault(day.isoformat(), []).append(entry)
+        day += dt.timedelta(days=1)
+
+
+def main():
+    today = dt.date.today()
+    first = (today.replace(day=1) - dt.timedelta(days=45)).replace(day=1)
+    last = today + dt.timedelta(days=366)
+    days = {}
+    for url in urls():
+        data = feed(url)
+        if not data:
+            continue
+        try:
+            cal = icalendar.Calendar.from_ical(data)
+            events = recurring_ical_events.of(cal).between(first, last + dt.timedelta(days=1))
+        except Exception as e:
+            print(f"calendar: {e}", file=sys.stderr)
+            continue
+        for event in events:
+            if str(event.get("STATUS", "")).upper() == "CANCELLED":
+                continue
+            add(days, event, first, last, calendar_id(url))
+    for events in days.values():
+        events.sort(key=lambda e: (not e["allDay"], e["start"] or "", e["title"]))
+    CACHE.mkdir(parents=True, exist_ok=True)
+    tmp = OUT.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps({"updated": int(time.time()), "days": days}))
+    tmp.replace(OUT)
+
+
+if __name__ == "__main__":
+    main()
