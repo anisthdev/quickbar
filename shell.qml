@@ -101,6 +101,8 @@ ShellRoot {
 
     Polkit {}
 
+    MicMuteLed {}
+
     KeepAwake {
         id: keepAwake
     }
