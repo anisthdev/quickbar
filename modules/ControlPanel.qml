@@ -446,15 +446,39 @@ Scope {
         id: vpnToggle
 
         Process {
-            required property var vpn
+            id: toggle
 
-            command: [`${root.scripts}/busy`, "--body", vpn.name, vpn.active ? "Disconnecting VPN" : "Connecting VPN", "--", "nmcli", "connection", vpn.active ? "down" : "up", vpn.name]
-            onExited: {
+            required property var vpn
+            property int code: 0
+            property string err: ""
+            // The exit code and stderr arrive in either order
+            property int pending: 2
+
+            function done() {
+                if (--pending > 0)
+                    return;
+                // Only failures notify: the row shows vpnPending until now
+                if (code !== 0) {
+                    const reason = err.split("\n").filter(l => l.trim()).pop() || `nmcli exited with ${code}`;
+                    Quickshell.execDetached(["notify-send", "-i", "network-vpn", vpn.active ? "Couldn't disconnect VPN" : "Couldn't connect VPN", `${vpn.name}: ${reason}`]);
+                }
                 const p = Object.assign({}, root.vpnPending);
                 delete p[vpn.name];
                 root.vpnPending = p;
                 vpnList.running = true;
                 destroy();
+            }
+
+            command: ["nmcli", "connection", vpn.active ? "down" : "up", vpn.name]
+            stderr: StdioCollector {
+                onStreamFinished: {
+                    toggle.err = text;
+                    toggle.done();
+                }
+            }
+            onExited: code => {
+                toggle.code = code;
+                toggle.done();
             }
         }
     }
