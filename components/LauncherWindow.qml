@@ -150,10 +150,13 @@ Scope {
     }
 
     // Puts text in the field with its first `selected` characters selected,
-    // to type over (a file name's stem)
+    // to type over (a file name's stem); without, the cursor goes to the end
     function fill(text, selected) {
         field.text = text;
-        field.select(0, selected ?? 0);
+        if (selected)
+            field.select(0, selected);
+        else
+            field.cursorPosition = text.length;
     }
 
     function startFilter() {

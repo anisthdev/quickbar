@@ -24,7 +24,8 @@ close path with the same 0.6 stroke as the converted ones, and `search`,
 `download`, `arrow_upward` and `arrow_downward` (the media search) are
 Material Symbols, as is `scratchpad` (picture_in_picture, Rounded),
 the workspaces' fallback for a scratchpad with no icon set, and `terminal`,
-`sticky_note_2` and `auto_awesome` for the scratchpads. All icons are white; the bar tints them.
+`sticky_note_2` and `auto_awesome` for the scratchpads. `sort`, `bookmarks` and
+`create_new_folder` (Rounded) are the file chooser's buttons. All icons are white; the bar tints them.
 
 Brightness icons (volume and brightness notifications), from
 packages/SystemUI/res/drawable; these are Lottie exports, whose bare "c"
