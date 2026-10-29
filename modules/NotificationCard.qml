@@ -11,8 +11,8 @@ import "../components"
 // meaning busy with no known end), and actions as text buttons. A sender
 // that asks for an inline reply (KDE's extension: an "inline-reply" action)
 // gets a Reply button that opens a text field in place of the buttons.
-// Clicking runs the default action; swipe it sideways, or hit ×, to
-// dismiss. It slides in from the right edge and folds away when it goes,
+// Clicking runs the default action (or dismisses, without one); swipe it
+// sideways to dismiss. It slides in from the right edge and folds away when it goes,
 // moving by shape only (see Dropdown on why nothing here fades).
 //
 // A notification object is destroyed the moment it closes, so everything
@@ -429,15 +429,6 @@ Item {
                             iconRotation: root.expanded ? 90 : 270
                             color: Theme.on_surface_variant
                             onClicked: root.expanded = !root.expanded
-                        }
-
-                        IconButton {
-                            implicitWidth: 26
-                            implicitHeight: 26
-                            icon: "close"
-                            iconSize: 14
-                            color: Theme.on_surface_variant
-                            onClicked: root.dismiss()
                         }
                     }
                 }
