@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""What to share, for xdg-desktop-portal-hyprland (custom_picker_binary in
+~/.config/hypr/xdph.conf), asked in the shell (modules/SharePicker.qml)
+instead of hyprland-share-picker.
+
+xdph runs this for each screen share, with --allow-token when it lets apps
+keep the choice, and the windows it can share in XDPH_WINDOW_SHARING_LIST:
+
+  HANDLE[HC>]CLASS[HT>]TITLE[HE>]ADDRESS[HA>]...
+
+It sends them over $XDG_RUNTIME_DIR/quickbar/sharepicker.sock, one JSON line
+each way:
+
+  → {"op": "pick", "windows": [{handle, class, title, address}], "allowToken"}
+  ← {"selection": "screen:NAME" | "window:HANDLE" | "region:NAME@X,Y,W,H",
+     "restore": BOOL}  or  {"cancelled": true}
+
+and prints the pick as xdph reads it, `[SELECTION]` then r (the app may
+share it again without asking) then /, then the selection. A region is in
+the screen's own logical coordinates. Printing nothing cancels. Without the
+shell to ask, hyprland-share-picker asks instead.
+"""
+import json
+import os
+import socket
+import sys
+from pathlib import Path
+
+SOCKET = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "quickbar" / "sharepicker.sock"
+
+
+def windows():
+    found = []
+    for item in os.environ.get("XDPH_WINDOW_SHARING_LIST", "").split("[HA>]"):
+        if "[HC>]" not in item:
+            continue
+        handle, rest = item.split("[HC>]", 1)
+        cls, rest = rest.split("[HT>]", 1)
+        title, address = rest.split("[HE>]", 1)
+        # The Hyprland window's address, in decimal (0 when xdph can't tell)
+        address = hex(int(address)) if address.isdigit() and int(address) else ""
+        found.append({"handle": handle, "class": cls, "title": title, "address": address})
+    return found
+
+
+def main():
+    allow_token = "--allow-token" in sys.argv[1:]
+    try:
+        s = socket.socket(socket.AF_UNIX)
+        s.connect(str(SOCKET))
+    except OSError:
+        os.execvp("hyprland-share-picker", ["hyprland-share-picker"] + sys.argv[1:])
+    with s:
+        s.sendall((json.dumps({"op": "pick", "windows": windows(), "allowToken": allow_token}) + "\n").encode())
+        line = s.makefile().readline()
+    try:
+        answer = json.loads(line)
+    except ValueError:
+        return
+    if answer.get("selection"):
+        print(f"[SELECTION]{'r' if answer.get('restore') else ''}/{answer['selection']}", flush=True)
+
+
+if __name__ == "__main__":
+    main()

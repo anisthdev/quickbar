@@ -16,6 +16,7 @@ import "../components"
 // Keys: Enter or c copies, e edits, t copies the text, r translates, l
 // searches with Lens, a takes the whole screen, Esc closes. Opened for one
 // action (`ipc call region open text`), picking does it straight away.
+// Screen sharing asks it for a region instead (ask), which is handed back.
 Scope {
     id: root
 
@@ -64,11 +65,13 @@ Scope {
     property var windows: []
     // The region picked, or null
     property var picked: null
+    // Someone a pick is for instead of an action (screen sharing, see ask)
+    property var taker: null
 
     function show(action) {
         if (open || freezer.running)
             return;
-        preset = actions.some(a => a.id === action) ? action : "";
+        preset = action === "share" || actions.some(a => a.id === action) ? action : "";
         const name = Hyprland.focusedMonitor?.name ?? "";
         screen = Quickshell.screens.find(s => s.name === name) ?? Quickshell.screens[0];
         picked = null;
@@ -81,6 +84,22 @@ Scope {
     function hide() {
         open = false;
         picked = null;
+        if (taker) {
+            const take = taker;
+            taker = null;
+            take(null);
+        }
+    }
+
+    // A region for screen sharing: `take` gets { screen, x, y, width,
+    // height } in the screen's logical pixels, or null if none was picked
+    function ask(take) {
+        if (open || freezer.running) {
+            take(null);
+            return;
+        }
+        taker = take;
+        show("share");
     }
 
     // The region picked, in the frozen picture's pixels
@@ -93,6 +112,20 @@ Scope {
     function run(action) {
         if (!picked || picked.width < 2 || picked.height < 2)
             return;
+        if (action === "share") {
+            const take = taker;
+            const region = {
+                screen: screen.name,
+                x: Math.round(picked.x),
+                y: Math.round(picked.y),
+                width: Math.round(picked.width),
+                height: Math.round(picked.height)
+            };
+            taker = null;
+            hide();
+            take?.(region);
+            return;
+        }
         Quickshell.execDetached([root.script, action, root.frozen, geometry()]);
         hide();
     }
@@ -411,7 +444,7 @@ Scope {
 
                 anchors.centerIn: parent
                 text: {
-                    const what = root.actions.find(a => a.id === root.preset)?.label;
+                    const what = root.preset === "share" ? "Share" : root.actions.find(a => a.id === root.preset)?.label;
                     return `${what ? what + ": d" : "D"}rag a region, or click a window  ·  a for the whole screen  ·  Esc to cancel`;
                 }
                 color: Theme.on_surface
@@ -434,7 +467,7 @@ Scope {
                         height: window.height
                     });
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    root.run("copy");
+                    root.run(root.preset || "copy");
                 } else {
                     const action = root.actions.find(a => a.key === event.text);
                     if (!action)

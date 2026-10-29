@@ -103,6 +103,10 @@ ShellRoot {
 
     FileChooser {}
 
+    SharePicker {
+        region: region
+    }
+
     MicMuteLed {}
 
     KeepAwake {
