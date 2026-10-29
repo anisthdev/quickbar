@@ -34,6 +34,19 @@ Scope {
         if (root.hiddenApps.includes(n.appName))
             return;
         n.tracked = true;
+        // Progress (a number in the "value" hint) is a download: the bar's
+        // pill shows it, not a card (see DownloadHub). Not a level, though
+        // (volume, brightness: they come with x-canonical-private-synchronous),
+        // nor one replacing a card on screen (busy's "Done"), nor busy's
+        // spinner (value "busy"); and a download that turns into a plain
+        // message leaves the pill for a card.
+        const onCard = Object.values(objects).some(o => o?.id === n.id);
+        const level = n.hints?.["x-canonical-private-synchronous"] !== undefined;
+        if (n.hints?.value !== undefined && !isNaN(Number(n.hints.value)) && !level && !onCard) {
+            DownloadHub.addNotification(n);
+            return;
+        }
+        DownloadHub.releaseNotification(n.id);
         // A newer level of the same kind takes over the card on screen
         const sync = n.hints?.["x-canonical-private-synchronous"];
         if (sync) {

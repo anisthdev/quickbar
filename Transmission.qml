@@ -4,8 +4,8 @@ import Quickshell
 import QtQuick
 
 // transmission-daemon's downloads, from its RPC: the unfinished torrents,
-// newest first, and one that just finished. DownloadState shows them with
-// the runner's downloads. Polls every 1.5 s while
+// newest first, and one that just finished. DownloadHub shows them, as
+// Seedling's (~/Projects/seedling), with everyone else's downloads. Polls every 1.5 s while
 // something downloads or someone is watching, every 10 s otherwise, and
 // every half second for a moment after expect(), so a download added from
 // the media search shows up at once.
@@ -84,9 +84,31 @@ Singleton {
         });
     }
 
-    function toggle(torrent) {
-        rpc(torrent.status === 0 ? "torrent-start" : "torrent-stop", {
-            ids: [torrent.id]
+    // A torrent as one of DownloadHub's downloads: Seedling's, a click
+    // opening Seedling on it
+    function toDownload(t) {
+        const states = ["paused", "verifying", "verifying", "queued", "downloading", "queued", "downloading"];
+        const stopped = t.status === 0 || t.error;
+        return {
+            app: "io.github.anisthdev.Seedling",
+            id: String(t.id),
+            title: t.name,
+            progress: t.percentDone,
+            state: t.error ? "error" : states[t.status] ?? "downloading",
+            error: t.error ? t.errorString || "Error" : "",
+            detail: `${Math.floor(t.percentDone * 100)}% · ${size(t.sizeWhenDone - t.leftUntilDone)} of ${size(t.sizeWhenDone)} · ${state(t)}`,
+            actions: [stopped ? "resume" : "pause"],
+            open: [Quickshell.env("HOME") + "/Projects/seedling/seedling", "show", String(t.id)],
+            added: t.addedDate * 1000
+        };
+    }
+
+    // The dropdown's pause and resume
+    function act(id, action) {
+        if (action !== "pause" && action !== "resume")
+            return;
+        rpc(action === "pause" ? "torrent-stop" : "torrent-start", {
+            ids: [id]
         }, () => refresh());
     }
 

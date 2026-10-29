@@ -1382,12 +1382,18 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call musicmenu toggle`, e.g. from Super+Shift+M
+    // `qs -p <dir> ipc call musicmenu toggle`, e.g. from Super+Shift+M;
+    // open from the downloads dropdown's music rows
     IpcHandler {
         target: "musicmenu"
 
         function toggle(): void {
             root.toggle();
+        }
+
+        function open(): void {
+            if (!root.open)
+                root.show();
         }
     }
 }

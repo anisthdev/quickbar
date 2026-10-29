@@ -251,7 +251,7 @@ Scope {
         Quickshell.execDetached([root.searchScript, current.id, stream ? "--stream" : "--add", r.magnet_uri, r.title]);
         // Have it show there as soon as Transmission has it
         if (!stream)
-            DownloadState.expect("transmission");
+            DownloadHub.poke("transmission");
         hide();
     }
 
@@ -277,8 +277,8 @@ Scope {
             Quickshell.execDetached(["mpv", "--force-window=immediate", "--", url]);
         } else {
             // The bar's downloads ring is the confirmation, as for torrents
+            // (scripts/download reports it as soon as it starts)
             Quickshell.execDetached(command);
-            DownloadState.expect("runner");
         }
         hide();
     }
