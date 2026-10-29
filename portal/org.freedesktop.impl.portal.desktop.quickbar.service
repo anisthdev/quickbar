@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.freedesktop.impl.portal.desktop.quickbar
+Exec=/bin/false
+SystemdService=quickbar-portal.service

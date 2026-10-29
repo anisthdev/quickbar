@@ -148,6 +148,13 @@ Scope {
         field.text = "";
     }
 
+    // Puts text in the field with its first `selected` characters selected,
+    // to type over (a file name's stem)
+    function fill(text, selected) {
+        field.text = text;
+        field.select(0, selected ?? 0);
+    }
+
     function startFilter() {
         filtering = true;
         field.forceActiveFocus();

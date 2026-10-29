@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""quickbar's file chooser portal: an xdg-desktop-portal backend
+(org.freedesktop.impl.portal.FileChooser) whose dialogs are the shell's own
+(modules/FileChooser.qml). docs/filechooser.md has the setup.
+
+  filechooser-portal              serve the portal (quickbar-portal.service)
+  filechooser-portal test KIND    ask the shell directly, no D-Bus, and print
+                                  the answer; KIND is open, multiple, folder,
+                                  save or images
+
+Each portal call becomes one request over $XDG_RUNTIME_DIR/quickbar/
+filechooser.sock, served by the shell: one JSON line out, one back.
+
+  → {"op": "open", "mode": "open" | "save", "title", "accept",
+     "multiple", "directory", "filters": [{name, globs}], "filter",
+     "folder", "name"}
+  ← {"paths": [...], "filter": INDEX}  or  {"cancelled": true}
+
+filter is an index into filters, or -1 for none. Filters come as globs
+only: mime types are turned into theirs here, from shared-mime-info. A
+folder the app asked for that isn't there is sent as "", for the shell's
+own choice. Closing the connection takes the dialog away (the app gave up
+on it, Request.Close).
+"""
+import json
+import os
+import sys
+from pathlib import Path
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+BUS_NAME = "org.freedesktop.impl.portal.desktop.quickbar"
+OBJECT_PATH = "/org/freedesktop/portal/desktop"
+SOCKET = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "quickbar" / "filechooser.sock"
+MIME_GLOBS = [Path(d) / "mime" / "globs2" for d in
+              [os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")]
+              + os.environ.get("XDG_DATA_DIRS", "/usr/local/share:/usr/share").split(":")]
+
+# Portal responses
+OK, CANCELLED, OTHER = 0, 1, 2
+
+CALL = """
+<method name="{}">
+  <arg type="o" name="handle" direction="in"/>
+  <arg type="s" name="app_id" direction="in"/>
+  <arg type="s" name="parent_window" direction="in"/>
+  <arg type="s" name="title" direction="in"/>
+  <arg type="a{{sv}}" name="options" direction="in"/>
+  <arg type="u" name="response" direction="out"/>
+  <arg type="a{{sv}}" name="results" direction="out"/>
+</method>"""
+CHOOSER = Gio.DBusNodeInfo.new_for_xml(f"""<node>
+<interface name="org.freedesktop.impl.portal.FileChooser">
+  {CALL.format("OpenFile")}{CALL.format("SaveFile")}{CALL.format("SaveFiles")}
+</interface></node>""").interfaces[0]
+REQUEST = Gio.DBusNodeInfo.new_for_xml("""<node>
+<interface name="org.freedesktop.impl.portal.Request"><method name="Close"/></interface>
+</node>""").interfaces[0]
+
+_mime_globs = None
+
+
+def mime_globs(mime):
+    """The globs files of a mime type (or a whole kind, "image/*") go by."""
+    global _mime_globs
+    if _mime_globs is None:
+        _mime_globs = {}
+        for path in MIME_GLOBS:
+            try:
+                lines = path.read_text().splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                # weight:type:glob[:flags]
+                parts = line.split(":")
+                if line.startswith("#") or len(parts) < 3:
+                    continue
+                _mime_globs.setdefault(parts[1], []).append(parts[2])
+    if mime.endswith("/*"):
+        kind = mime[:-1]
+        globs = [g for t, gs in _mime_globs.items() if t.startswith(kind) for g in gs]
+    else:
+        globs = _mime_globs.get(mime, [])
+    return list(dict.fromkeys(globs))
+
+
+def to_globs(rules):
+    """A portal filter's rules, [(0 glob | 1 mime, pattern)], as globs."""
+    globs = []
+    for kind, pattern in rules:
+        globs += [pattern] if kind == 0 else mime_globs(pattern)
+    return list(dict.fromkeys(globs))
+
+
+def path_of(value):
+    """A portal path: bytes ending in a NUL."""
+    return os.fsdecode(bytes(value).rstrip(b"\0")) if value else ""
+
+
+def request_for(method, title, options):
+    """The shell's request for a portal call, and its filters as the portal
+    gave them (to say which one was used)."""
+    filters = list(options.get("filters", []))
+    current = options.get("current_filter")
+    if current and current not in filters:
+        filters.append(current)
+    folder = path_of(options.get("current_folder"))
+    name = options.get("current_name", "")
+    current_file = path_of(options.get("current_file"))
+    if current_file:
+        folder, name = os.path.split(current_file)
+    save = method == "SaveFile"
+    return {
+        "op": "open",
+        "mode": "save" if save else "open",
+        "title": title,
+        "accept": options.get("accept_label", ""),
+        "multiple": bool(options.get("multiple", False)),
+        # SaveFiles asks for a folder, the app names the files
+        "directory": bool(options.get("directory", False)) or method == "SaveFiles",
+        "filters": [{"name": n, "globs": to_globs(rules)} for n, rules in filters],
+        "filter": filters.index(current) if current else -1,
+        "folder": folder if os.path.isdir(folder) else "",
+        "name": name,
+    }, filters
+
+
+def results_for(method, options, answer, filters):
+    paths = answer.get("paths", [])
+    if method == "SaveFiles" and paths:
+        paths = [os.path.join(paths[0], path_of(f)) for f in options.get("files", [])]
+    results = {"uris": GLib.Variant("as", [Gio.File.new_for_path(p).get_uri() for p in paths])}
+    index = answer.get("filter", -1)
+    if 0 <= index < len(filters):
+        results["current_filter"] = GLib.Variant("(sa(us))", filters[index])
+    return results
+
+
+class Dialog:
+    """One portal call: the shell's dialog, and the Request object the app
+    can close it through."""
+
+    def __init__(self, bus, invocation, handle, method, options, request, filters):
+        self.bus = bus
+        self.invocation = invocation
+        self.method = method
+        self.options = options
+        self.filters = filters
+        self.connection = None
+        self.done = False
+        self.registration = bus.register_object(handle, REQUEST, self.on_close, None, None)
+        self.message = (json.dumps(request) + "\n").encode()
+        Gio.SocketClient().connect_async(Gio.UnixSocketAddress.new(str(SOCKET)), None, self.on_connected)
+
+    def on_close(self, bus, sender, path, interface, method, params, invocation):
+        invocation.return_value(None)
+        self.reply(OTHER, {})
+
+    def on_connected(self, client, result):
+        try:
+            self.connection = client.connect_finish(result)
+            self.connection.get_output_stream().write_all(self.message, None)
+        except GLib.Error as e:
+            print(f"quickbar isn't answering on {SOCKET}: {e.message}", file=sys.stderr)
+            self.reply(OTHER, {})
+            return
+        stream = Gio.DataInputStream.new(self.connection.get_input_stream())
+        stream.read_line_async(GLib.PRIORITY_DEFAULT, None, self.on_answer)
+
+    def on_answer(self, stream, result):
+        try:
+            line, _ = stream.read_line_finish_utf8(result)
+            answer = json.loads(line) if line else None
+        except (GLib.Error, ValueError):
+            answer = None
+        if answer is None:
+            # The shell went away mid-dialog
+            self.reply(OTHER, {})
+        elif answer.get("cancelled"):
+            self.reply(CANCELLED, {})
+        else:
+            self.reply(OK, results_for(self.method, self.options, answer, self.filters))
+
+    def reply(self, response, results):
+        if self.done:
+            return
+        self.done = True
+        self.invocation.return_value(GLib.Variant("(ua{sv})", (response, results)))
+        self.bus.unregister_object(self.registration)
+        if self.connection:
+            self.connection.close()
+
+
+def on_call(bus, sender, path, interface, method, params, invocation):
+    handle, app_id, parent_window, title, options = params.unpack()
+    request, filters = request_for(method, title, options)
+    Dialog(bus, invocation, handle, method, options, request, filters)
+
+
+def serve():
+    loop = GLib.MainLoop()
+
+    def acquired(bus, name):
+        bus.register_object(OBJECT_PATH, CHOOSER, on_call, None, None)
+
+    def lost(bus, name):
+        print(f"Couldn't own {BUS_NAME}", file=sys.stderr)
+        loop.quit()
+
+    Gio.bus_own_name(Gio.BusType.SESSION, BUS_NAME, Gio.BusNameOwnerFlags.NONE, acquired, None, lost)
+    loop.run()
+
+
+def test(kind):
+    """What an app would get, straight from the shell."""
+    import socket
+    home = str(Path.home())
+    images = [("Images", [(1, "image/*")]), ("PDFs", [(1, "application/pdf")]), ("Everything", [(0, "*")])]
+    options = {
+        "open": ("OpenFile", "Open File", {}),
+        "multiple": ("OpenFile", "Open Files", {"multiple": True}),
+        "folder": ("OpenFile", "Select Folder", {"directory": True}),
+        "save": ("SaveFile", "Save File", {"current_name": "untitled.txt",
+                                            "current_folder": list(os.fsencode(home + "/Documents") + b"\0")}),
+        "images": ("OpenFile", "Open Image", {"filters": images, "current_filter": images[0]}),
+    }
+    if kind not in options:
+        sys.exit(f"test: one of {', '.join(options)}")
+    method, title, opts = options[kind]
+    request, _ = request_for(method, title, opts)
+    with socket.socket(socket.AF_UNIX) as s:
+        s.connect(str(SOCKET))
+        s.sendall((json.dumps(request) + "\n").encode())
+        print(s.makefile().readline().strip() or "(closed)")
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["test"]:
+        test(sys.argv[2] if len(sys.argv) > 2 else "open")
+    else:
+        serve()

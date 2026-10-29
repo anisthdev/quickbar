@@ -101,6 +101,8 @@ ShellRoot {
 
     Polkit {}
 
+    FileChooser {}
+
     MicMuteLed {}
 
     KeepAwake {
