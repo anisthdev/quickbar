@@ -124,13 +124,11 @@ Seedling if need be). Pause and resume are done by the provider (RPC).
   number (`busy`'s spinner, `value:busy`), a notification replacing a popup
   on screen (`busy`'s "Done"), and a download whose replacement has no
   value any more (a final message) leaves the pill for a popup.
-- **Unity LauncherEntry** (DBus signal
-  `com.canonical.Unity.LauncherEntry.Update`), which Chromium-based browsers
-  and KDE apps send for their downloads: read with `busctl --user monitor
-  --json=short`, no daemon of our own. It carries only a progress and the
-  app (`application://firefox.desktop`), so the row is the app's name and
-  "Downloading"; `progress-visible: false` removes it. Which apps send it
-  here is to be checked (Firefox may not). Not built yet.
+
+Browsers are left out: they show their own downloads. (Neither sends Unity
+LauncherEntry progress under Hyprland, checked with `busctl --user monitor`
+during a Chrome download; a browser extension talking to the socket would
+be the way, should it ever be wanted.)
 
 ## The bar
 
@@ -151,5 +149,3 @@ tunes passes `--app tunes --app-name Music --icon multimedia-audio-player
 --open "qs -p ~/Projects/quickbar ipc call musicmenu open"`; older callers'
 `--kind` still works. The media search pokes Transmission after adding a
 torrent.
-
-To do: the LauncherEntry bridge.
