@@ -23,7 +23,8 @@ import ".."
 // theme icon name or a path, `emoji` shows in its place, and `subtitle`, `trailing` (a short state,
 // e.g. "On"), `keys` (keycaps, e.g. ["Super", "Q"]), `trailingIcon` (one
 // of icons/, e.g. a pin), `checked` (a check mark) and `accent` (a row standing apart in the tertiary colour, as a
-// page's on/off switch) are optional. Long lists scroll
+// page's on/off switch) are optional. Rows with a `section` are grouped
+// under it as a heading, each run of one section its own group. Long lists scroll
 // after `maxRows` rows, and with `bigCurrent` the current row grows to show
 // its picture large (box art, covers).
 //
@@ -501,10 +502,29 @@ Scope {
                     readonly property real rowHeight: 58
                     readonly property real bigRowHeight: 112
                     readonly property int rows: root.maxRows > 0 ? Math.min(count, root.maxRows) : count
+                    // Room for a section's heading over its first row
+                    readonly property real headingHeight: 30
+                    readonly property real sectionGap: 10
+
+                    // The heading's room over row `index`, if it starts a section
+                    function gapOf(index) {
+                        const section = root.shown[index]?.section ?? "";
+                        if (section === "" || section === (root.shown[index - 1]?.section ?? ""))
+                            return 0;
+                        return index === 0 ? headingHeight : headingHeight + sectionGap;
+                    }
+
+                    // Over the rows shown before it scrolls
+                    readonly property real gaps: {
+                        let sum = 0;
+                        for (let i = 0; i < rows; i++)
+                            sum += gapOf(i);
+                        return sum;
+                    }
 
                     visible: count > 0
                     width: parent.width
-                    height: rows * rowHeight + Math.max(0, rows - 1) * spacing + (currentItem?.big ? bigRowHeight - rowHeight : 0)
+                    height: rows * rowHeight + Math.max(0, rows - 1) * spacing + gaps + (currentItem?.big ? bigRowHeight - rowHeight : 0)
                     spacing: 2
                     clip: true
                     interactive: rows < count
@@ -531,150 +551,201 @@ Scope {
                     // The pick's fill slides from row to row: it sits above
                     // the rows' backgrounds (drawn on a layer of their own,
                     // below) and under their icons and text
-                    highlightFollowsCurrentItem: true
-                    highlightMoveDuration: 220
-                    highlightMoveVelocity: -1
-                    highlightResizeDuration: Theme.animNormal
-                    highlightResizeVelocity: -1
+                    // (placed by hand: the current item holds its heading too)
+                    highlightFollowsCurrentItem: false
                     highlight: Rectangle {
+                        id: pickFill
+
+                        // Not to slide in from the top on opening
+                        property bool settled: false
+
+                        Component.onCompleted: Qt.callLater(() => settled = true)
+
+                        y: (list.currentItem?.y ?? 0) + (list.currentItem?.gap ?? 0)
+                        width: list.width
+                        height: list.currentItem?.row.height ?? 0
                         radius: Theme.radius
                         color: Theme.secondary_container
                         // Fades in with its row as the menu opens
                         // No pick while the field asks for text
-                        opacity: root.prompt !== "" ? 0 : list.currentItem?.opacity ?? 1
+                        opacity: root.prompt !== "" ? 0 : list.currentItem?.row.opacity ?? 1
+
+                        Behavior on y {
+                            enabled: pickFill.settled
+                            NumberAnimation {
+                                duration: 220
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                        Behavior on height {
+                            NumberAnimation {
+                                duration: Theme.animNormal
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Theme.emphasizedDecel
+                            }
+                        }
                     }
 
-                    // The grouped list rows of the other menus
-                    delegate: ListItem {
-                        id: item
+                    // The grouped list rows of the other menus, each with
+                    // room over it for its section's heading if it starts one
+                    delegate: Item {
+                        id: slot
 
                         required property var modelData
                         required property int index
-                        readonly property bool isCurrent: ListView.isCurrentItem
-                        // An entry can opt out (`big: false`), e.g. a text row among pictures
-                        readonly property bool big: root.bigCurrent && isCurrent && (modelData.big ?? true)
-                        // A row starts at its size, and opening jumps to the first
-                        // one; only moving the pick animates
-                        property bool settled: false
-
-                        Component.onCompleted: Qt.callLater(() => {
-                            if (item)
-                                item.settled = true;
-                        })
+                        readonly property real gap: list.gapOf(index)
+                        readonly property alias row: item
+                        readonly property bool big: item.big
 
                         width: list.width
-                        rowHeight: big ? list.bigRowHeight : list.rowHeight
-                        // Its own easing below moves the content with it
-                        animateHeight: false
-                        image: {
-                            const name = modelData.icon ?? "";
-                            // Only while shown, so closing frees the
-                            // decoded icons and previews
-                            if (name === "" || !window.visible)
-                                return "";
-                            return name.startsWith("/") ? `file://${name}` : Quickshell.iconPath(name, true);
-                        }
-                        emoji: modelData.emoji ?? ""
-                        imageSize: big ? 96 : 32
-
-                        Behavior on rowHeight {
-                            enabled: item.settled && !openAnim.running
-                            NumberAnimation {
-                                duration: Theme.animNormal
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Theme.emphasizedDecel
-                            }
-                        }
-                        Behavior on imageSize {
-                            enabled: item.settled && !openAnim.running
-                            NumberAnimation {
-                                duration: Theme.animNormal
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Theme.emphasizedDecel
-                            }
-                        }
-                        text: modelData.label
-                        subtitle: modelData.subtitle ?? ""
-                        // An accent row stands alone, all corners round
-                        first: index === 0 || modelData.accent || (root.shown[index - 1]?.accent ?? false)
-                        last: index === list.count - 1 || modelData.accent || (root.shown[index + 1]?.accent ?? false)
-                        clickable: true
-                        // The background is drawn below, under the sliding fill
-                        drawBackground: false
-                        shown: root.open && root.revealed
-                        revealIndex: Math.min(index, 8)
-                        onClicked: {
-                            root.pickModifiers = 0;
-                            root.run(index);
-                        }
-                        onHoveredChanged: if (hovered)
-                            list.currentIndex = index
+                        height: gap + item.height
 
                         Label {
-                            visible: text !== ""
-                            text: item.modelData.trailing ?? ""
-                            color: Theme.on_surface_variant
+                            anchors.verticalCenter: undefined
+                            visible: slot.gap > 0
+                            x: 4
+                            y: slot.gap - list.headingHeight + 4
+                            text: slot.modelData.section ?? ""
+                            color: Theme.primary
                             font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                            // Comes in with its row
+                            opacity: item.opacity
                         }
 
-                        // Keycaps
-                        Row {
-                            visible: (item.modelData.keys ?? []).length > 0
-                            spacing: 4
+                        ListItem {
+                            id: item
 
-                            Repeater {
-                                model: item.modelData.keys ?? []
+                            readonly property var modelData: slot.modelData
+                            readonly property int index: slot.index
+                            readonly property bool isCurrent: slot.ListView.isCurrentItem
+                            // An entry can opt out (`big: false`), e.g. a text row among pictures
+                            readonly property bool big: root.bigCurrent && isCurrent && (modelData.big ?? true)
+                            // A row starts at its size, and opening jumps to the first
+                            // one; only moving the pick animates
+                            property bool settled: false
 
-                                Rectangle {
-                                    required property string modelData
+                            Component.onCompleted: Qt.callLater(() => {
+                                if (item)
+                                    item.settled = true;
+                            })
 
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: Math.max(26, cap.implicitWidth + 14)
-                                    height: 26
-                                    radius: 6
-                                    color: Theme.surface_container_highest
+                            width: list.width
+                            rowHeight: big ? list.bigRowHeight : list.rowHeight
+                            // Its own easing below moves the content with it
+                            animateHeight: false
+                            image: {
+                                const name = modelData.icon ?? "";
+                                // Only while shown, so closing frees the
+                                // decoded icons and previews
+                                if (name === "" || !window.visible)
+                                    return "";
+                                return name.startsWith("/") ? `file://${name}` : Quickshell.iconPath(name, true);
+                            }
+                            emoji: modelData.emoji ?? ""
+                            imageSize: big ? 96 : 32
 
-                                    Label {
-                                        id: cap
+                            Behavior on rowHeight {
+                                enabled: item.settled && !openAnim.running
+                                NumberAnimation {
+                                    duration: Theme.animNormal
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: Theme.emphasizedDecel
+                                }
+                            }
+                            Behavior on imageSize {
+                                enabled: item.settled && !openAnim.running
+                                NumberAnimation {
+                                    duration: Theme.animNormal
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: Theme.emphasizedDecel
+                                }
+                            }
+                            text: modelData.label
+                            subtitle: modelData.subtitle ?? ""
+                            y: slot.gap
+                            // An accent row stands alone, all corners round, and
+                            // a section is a group of its own
+                            first: index === 0 || modelData.accent || (root.shown[index - 1]?.accent ?? false) || (root.shown[index - 1]?.section ?? "") !== (modelData.section ?? "")
+                            last: index === list.count - 1 || modelData.accent || (root.shown[index + 1]?.accent ?? false) || (root.shown[index + 1]?.section ?? "") !== (modelData.section ?? "")
+                            clickable: true
+                            // The background is drawn below, under the sliding fill
+                            drawBackground: false
+                            shown: root.open && root.revealed
+                            revealIndex: Math.min(index, 8)
+                            onClicked: {
+                                root.pickModifiers = 0;
+                                root.run(index);
+                            }
+                            onHoveredChanged: if (hovered)
+                                list.currentIndex = index
 
-                                        anchors.centerIn: parent
-                                        text: parent.modelData
-                                        color: Theme.on_surface_variant
-                                        font.pixelSize: 12
+                            Label {
+                                visible: text !== ""
+                                text: item.modelData.trailing ?? ""
+                                color: Theme.on_surface_variant
+                                font.pixelSize: 13
+                            }
+
+                            // Keycaps
+                            Row {
+                                visible: (item.modelData.keys ?? []).length > 0
+                                spacing: 4
+
+                                Repeater {
+                                    model: item.modelData.keys ?? []
+
+                                    Rectangle {
+                                        required property string modelData
+
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: Math.max(26, cap.implicitWidth + 14)
+                                        height: 26
+                                        radius: 6
+                                        color: Theme.surface_container_highest
+
+                                        Label {
+                                            id: cap
+
+                                            anchors.centerIn: parent
+                                            text: parent.modelData
+                                            color: Theme.on_surface_variant
+                                            font.pixelSize: 12
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        Icon {
-                            visible: name !== ""
-                            name: item.modelData.trailingIcon ?? ""
-                            size: 18
-                            color: Theme.on_surface_variant
-                        }
+                            Icon {
+                                visible: name !== ""
+                                name: item.modelData.trailingIcon ?? ""
+                                size: 18
+                                color: Theme.on_surface_variant
+                            }
 
-                        Icon {
-                            visible: item.modelData.checked ?? false
-                            name: "check"
-                            size: 20
-                            color: Theme.on_secondary_container
-                        }
+                            Icon {
+                                visible: item.modelData.checked ?? false
+                                name: "check"
+                                size: 20
+                                color: Theme.on_secondary_container
+                            }
 
-                        // The row's background, moved under the list's
-                        // highlight; it follows the row, fading in with it
-                        Rectangle {
-                            parent: list.contentItem
-                            z: -1
-                            x: item.x
-                            y: item.y
-                            width: item.width
-                            height: item.height
-                            topLeftRadius: item.topCorners
-                            topRightRadius: item.topCorners
-                            bottomLeftRadius: item.bottomCorners
-                            bottomRightRadius: item.bottomCorners
-                            color: item.modelData.accent ? Theme.tertiary_container : item.hovered && !item.isCurrent ? Theme.surface_container_highest : Theme.surface_container_high
-                            opacity: item.opacity
+                            // The row's background, moved under the list's
+                            // highlight; it follows the row, fading in with it
+                            Rectangle {
+                                parent: list.contentItem
+                                z: -1
+                                x: slot.x
+                                y: slot.y + slot.gap
+                                width: item.width
+                                height: item.height
+                                topLeftRadius: item.topCorners
+                                topRightRadius: item.topCorners
+                                bottomLeftRadius: item.bottomCorners
+                                bottomRightRadius: item.bottomCorners
+                                color: item.modelData.accent ? Theme.tertiary_container : item.hovered && !item.isCurrent ? Theme.surface_container_highest : Theme.surface_container_high
+                                opacity: item.opacity
+                            }
                         }
                     }
                 }
