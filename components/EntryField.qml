@@ -18,6 +18,11 @@ Item {
     signal submitted(string text)
     signal cancelled
 
+    // Empty again, e.g. for the next of several entries
+    function clear() {
+        input.text = "";
+    }
+
     function submit() {
         if (input.text !== "")
             root.submitted(input.text);

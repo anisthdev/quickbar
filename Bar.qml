@@ -56,7 +56,6 @@ PanelWindow {
         spacing: Theme.gap
 
         PhoneLive {}
-        Tasks {}
         Downloads {}
         Tray {}
         Status {}

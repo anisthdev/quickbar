@@ -44,6 +44,14 @@ Singleton {
     }
 
     IpcHandler {
+        target: "tasks"
+
+        function toggle(): void {
+            root.toggle("tasks");
+        }
+    }
+
+    IpcHandler {
         target: "downloads"
 
         function toggle(): void {

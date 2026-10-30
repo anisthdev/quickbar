@@ -84,8 +84,6 @@ ShellRoot {
 
     Calculator {}
 
-    TasksMenu {}
-
     Keybindings {}
 
     Clipboard {}

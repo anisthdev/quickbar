@@ -7,8 +7,8 @@ import QtQuick
 // The to-do list, in ~/Notes/todo.md beside the notes inbox: one task a
 // line, "- [ ] text" or "- [x] text" once done, so it reads and edits as
 // Markdown anywhere. Other lines (a heading, notes) are kept as they are.
-// The to-do menu (TasksMenu) and the bar's tasks pill show it; changes
-// made elsewhere show at once.
+// The clock pill's tasks count (Tasks) and its dropdown (TasksCard) show
+// it; changes made elsewhere show at once.
 Singleton {
     id: root
 

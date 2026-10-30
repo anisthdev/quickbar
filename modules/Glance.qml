@@ -2,8 +2,9 @@ import QtQuick
 import ".."
 import "../components"
 
-// Weather and time in one pill, split by a hairline: the condition icon
-// opens the weather card, the time opens the calendar.
+// Weather, time and the to-do count in one pill, split by hairlines: the
+// condition icon opens the weather card, the time opens the calendar, the
+// count the to-do list.
 Pill {
     padding: 5
     spacing: 2
@@ -22,4 +23,17 @@ Pill {
     }
 
     Clock {}
+
+    Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        visible: tasks.visible
+        width: 1
+        height: 16
+        color: Theme.on_background
+        opacity: 0.3
+    }
+
+    Tasks {
+        id: tasks
+    }
 }
