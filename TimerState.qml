@@ -14,7 +14,7 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property int focusMinutes: 25
+    readonly property int focusMinutes: 30
     readonly property int breakMinutes: 5
     readonly property int longBreakMinutes: 15
     readonly property string sound: Quickshell.env("HOME") + "/.local/share/sounds/macos/complete.ogg"

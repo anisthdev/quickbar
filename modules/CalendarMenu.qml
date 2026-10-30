@@ -756,11 +756,16 @@ Dropdown {
             font.pixelSize: 13
         }
 
-        Flow {
+        // One row, the chips sharing its width
+        Row {
+            id: presets
+
             width: parent.width
             spacing: 6
 
             Repeater {
+                id: presetRepeater
+
                 model: [
                     {
                         label: "5 min",
@@ -775,10 +780,6 @@ Dropdown {
                         minutes: 15
                     },
                     {
-                        label: "30 min",
-                        minutes: 30
-                    },
-                    {
                         label: `Focus ${TimerState.focusMinutes}`,
                         focus: true
                     }
@@ -789,7 +790,7 @@ Dropdown {
 
                     required property var modelData
 
-                    width: presetLabel.implicitWidth + 24
+                    width: (presets.width - presets.spacing * (presetRepeater.count - 1)) / presetRepeater.count
                     height: 32
                     radius: 16
                     color: presetMouse.containsMouse ? Theme.secondary_container : Theme.surface_container_high
