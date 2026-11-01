@@ -1,0 +1,21 @@
+[Unit]
+Description=quickbar, the desktop shell
+Documentation=https://github.com/anisthdev/quickbar
+PartOf=graphical-session.target
+After=graphical-session.target
+Requisite=graphical-session.target
+
+[Service]
+Type=exec
+# Locked as it starts (LockScreen.qml): at login, and again after a crash
+Environment=QUICKBAR_BOOT=1
+# The config named quickbar: the package's, or ~/.config/quickshell/quickbar
+ExecStart=/usr/bin/qs -n -c quickbar
+Restart=on-failure
+RestartSec=1
+# Only the shell: what it launched (apps, players) keeps running
+KillMode=process
+Slice=app-graphical.slice
+
+[Install]
+WantedBy=graphical-session.target

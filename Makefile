@@ -5,6 +5,8 @@
 #   /usr/lib/quickbar/                  the scripts run from outside the shell
 #   /usr/bin/quickbar-download          the downloads runner, for any app
 #                                       (docs/downloads.md)
+#   quickbar.service                    the shell as a systemd user service,
+#                                       restarted (and locked) after a crash
 #   systemd user unit, D-Bus activation and .portal for the file chooser
 #
 # A ~/.config/quickshell/quickbar of your own (a link to a checkout, say)
@@ -32,6 +34,8 @@ install:
 	for s in $(ENTRY_POINTS); do ln -sfn ../../share/quickbar/scripts/$$s $(LIB)/$$s; done
 	install -d $(DESTDIR)$(PREFIX)/bin
 	ln -sfn ../share/quickbar/scripts/download $(DESTDIR)$(PREFIX)/bin/quickbar-download
+	install -Dm644 systemd/quickbar.service \
+		$(DESTDIR)$(PREFIX)/lib/systemd/user/quickbar.service
 	install -Dm644 portal/quickbar-portal.service \
 		$(DESTDIR)$(PREFIX)/lib/systemd/user/quickbar-portal.service
 	install -Dm644 portal/org.freedesktop.impl.portal.desktop.quickbar.service \
