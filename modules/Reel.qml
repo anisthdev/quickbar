@@ -5,7 +5,7 @@ import ".."
 import "../components"
 
 // The video library, in mpv's start screen's place: reel
-// (~/Projects/reel) keeps ~/.cache/reel/library.json (titles, episodes,
+// (reel-scan, on PATH) keeps ~/.cache/reel/library.json (titles, episodes,
 // TMDB details and pictures), mpv keeps the progress (its watch_later files
 // and watch history, read by scripts/watch-progress), and this shows them,
 // full screen in a window of its own. mpv plays: a movie resumes where it
@@ -24,7 +24,6 @@ Scope {
     id: root
 
     readonly property string cache: Quickshell.env("HOME") + "/.cache/reel"
-    readonly property string reel: Quickshell.env("HOME") + "/Projects/reel"
 
     property bool open: false
     // "home", or "series" for root.seriesId's page
@@ -330,7 +329,7 @@ Scope {
     Process {
         id: scan
 
-        command: [root.reel + "/scan.py"]
+        command: ["reel-scan"]
     }
 
     // One per change to the marks or languages; the progress read again after
