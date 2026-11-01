@@ -6,7 +6,7 @@ import "../components"
 
 // The weather half of the clock pill (see Glance): just the condition icon,
 // with the temperature in its tooltip. Also the data behind the weather
-// card. Everything comes from waybar-weather's --forecast mode, which shares
+// card. Everything comes from weather's --forecast mode (on PATH), which shares
 // its location lookup and icon mapping with waybar; only the rendering is
 // new.
 Pill {
@@ -40,7 +40,7 @@ Pill {
     Process {
         id: proc
 
-        command: [Quickshell.env("HOME") + "/.local/bin/weather", "--forecast"]
+        command: ["weather", "--forecast"]
         stdout: StdioCollector {
             onStreamFinished: {
                 // Keep the last good data through bad output and errors (a
