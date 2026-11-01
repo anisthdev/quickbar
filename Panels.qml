@@ -7,4 +7,6 @@ import QtQuick
 Singleton {
     // The control panel: show(page) opens it at a page
     property var controlPanel: null
+    // The music menu (modules/MusicMenu.qml): toggle() opens or closes it
+    property var musicMenu: null
 }

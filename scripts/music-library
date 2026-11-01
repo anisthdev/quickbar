@@ -2,7 +2,7 @@
 """mpd's library as albums, for the music menu (modules/MusicMenu.qml), as JSON:
 
   {"albums": [{dir, title, artist, year, added, seconds,
-               cover, tracks: [{file, title, artist, track, seconds}]}, ...],
+               cover, tracks: [{file, title, artist, track, seconds, added}]}, ...],
    "playlists": [{name, seconds, covers: [up to 4],
                   tracks: [{file, title, artist, seconds, cover, missing}]}, ...],
    "playing": DIR, "playing_file": FILE}
@@ -90,7 +90,8 @@ def main():
             "cover": cover(folder, songs[0]["file"]),
             "tracks": [
                 {"file": s["file"], "title": s["title"] or os.path.basename(s["file"]),
-                 "artist": s["artist"], "track": number(s["track"]), "seconds": seconds(s["time"])}
+                 "artist": s["artist"], "track": number(s["track"]), "seconds": seconds(s["time"]),
+                 "added": added(s["mtime"])}
                 for s in songs
             ],
         })

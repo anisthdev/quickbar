@@ -1,155 +1,216 @@
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Widgets
 import QtQuick
-import QtQuick.Effects
 import ".."
 import "../components"
+import "music"
 
-// The music library as a menu, as ReelMenu is the video one, with two
-// tabs: mpd's albums (scripts/music-library: one per folder, newest first)
-// and its playlists, as a strip of covers across the middle of the screen,
-// the album mpd is playing marked. Picking plays it through mpd from its
-// first track, and the menu closes; the bar's now playing chip takes over.
-// Its tracks open below the covers, to play from one in particular. What
-// tunes downloads lands here. Playlists are mpd's own, so they work with
-// mpc too: songs are added to them from here, and the queue saved as one.
+// The music library as one of the shell's menus: a panel at the bottom
+// centre that springs open upwards, with tabs for Songs, Albums, Artists
+// and Playlists, a field searching the one open, and what mpd is playing at
+// its foot (NowPlayingBar). An album, an artist, a playlist or the queue
+// opens as a page over the tab (DetailPage); pages stack, so an album
+// opened from its artist goes back to them. Playlists are mpd's own. The library is mpd's, read by scripts/music-library (an
+// album a folder, as tunes files them); playing goes through MpdPlayer. It
+// reopens on the tab it was left on.
 //
-// Keys: h/l (or j/k, the arrows) move, gg/G go to the first and last, Tab
-// and Shift+Tab switch between albums and playlists, Enter or Space plays,
-// a adds it to mpd's queue (the menu stays), o opens its tracks, p adds it
-// to a playlist, S saves the queue as a new playlist, D twice deletes a
-// playlist, q or Esc closes. In the tracks j/k (gg/G, Ctrl+d/u) move,
-// Enter, Space or l plays from that track, a queues the track alone, p adds
-// it to a playlist, h, o or Esc go back to the covers; in a playlist's,
-// d removes the track and J/K move it down and up. / or i (or a click)
-// focuses the filter: typing filters by title, artist or track title,
-// Enter plays (from the track that matched, when it was a track), Esc goes
-// back to the covers keeping the filter, and Esc there clears it. The
-// picker for p and S filters the playlists as you type a name: Enter adds
-// to the one picked, or makes a new one by that name; Esc cancels. The
-// mouse wheel moves; a click picks, a click on the pick plays, a right
-// click opens its tracks.
+// Keys, vim style, the list keeping them: j/k (h/l too, in the album grid)
+// move, gg/G go to the ends, Ctrl+d/u by half a page. Enter plays a song
+// and the rest of its list after it, or opens an album, artist or playlist
+// (o too). a adds the pick to the queue's end, N plays it next, p adds it
+// to a playlist (a picker: type to find one, or a new name), s changes the
+// order (songs: added, title, artist; artists: most songs, name), D twice
+// deletes a playlist. Q opens the queue (as a click on the player does), S
+// saves it as a playlist. Tab/Shift+Tab or 1-4 switch tabs, Space plays or
+// pauses, > and < skip, / or i search, Esc clears the search and then
+// closes, as q and Ctrl+w do. On a page: Enter (or l) plays from the song
+// (in the queue, jumps to it), P plays it all, R shuffled, Esc, h or
+// Backspace go back; in a playlist or the queue J/K move the song down and
+// up and d takes it out. ? lists the keys. In the field typing searches;
+// Up/Down (Ctrl+j/k) move, Enter acts on the pick, Esc goes back to the
+// list keeping the search.
 Scope {
     id: root
 
     readonly property string script: Quickshell.shellDir + "/scripts/music-library"
-    readonly property real coverSize: 240
-    readonly property real grownScale: 1.08
+    readonly property var tabs: ["Songs", "Albums", "Artists", "Playlists"]
+    readonly property var songSorts: ["Added", "Title", "Artist"]
+    readonly property var artistSorts: ["Most songs", "Name"]
+    readonly property real rowHeight: 58
+    readonly property int maxRows: 8
+    readonly property int columns: 5
+    // [keys, what they do], for ? (KeyHelp)
+    readonly property var playerBindings: [["Space  >  <", "Play or pause, next, previous"], ["Q", "The queue (as a click on the player)"], ["S", "Save the queue as a playlist"]]
+    readonly property var tabBindings: [["j k  ↓ ↑", "Move (h l too, across the albums)"], ["gg G  Ctrl+d/u", "The ends, half a page"], ["Enter  o  l", "Play the song and the rest after it, or open it"], ["a  N", "Add to the queue's end, play next"], ["p", "Add to a playlist"], ["s", "Change the order"], ["D D", "Delete the playlist"], ["1-4  Tab", "Switch tabs"], ["/  i", "Search (Esc back to the list)"], ...playerBindings, ["Esc  q", "Clear the search, then close"]]
+    readonly property var pageBindings: [["j k  gg G", "Move"], ["Enter  l", "Play from the song (the queue: jump to it)"], ["P  R", "Play it all, shuffled"], ["a  N  p", "Queue the song, play it next, add it to a playlist"], ["J K  d", "Move the song down, up; take it out (a playlist, the queue)"], ["D D", "Delete the playlist"], ...playerBindings, ["Esc  h  Backspace", "Back"], ["q", "Close"]]
 
     property bool open: false
-    property bool filtering: false
+    // In the search field rather than on the list
+    property bool typing: false
     // The library, kept between openings, so it shows at once while it's
     // read again
     property var library: null
+    property int tab: saved.tab
+    property int songSort: 0
+    property int artistSort: 0
+    // The pages open over the tab, the last on top
+    property var pages: []
+    readonly property var page: pages.length > 0 ? pages[pages.length - 1] : null
     // What the right of the header says for a moment, e.g. "Queued"
     property string flash
-    // 0 albums, 1 playlists
-    property int tab: 0
-    // The current album's or playlist's tracks, open below the covers
-    property bool tracksOpen: false
-    // Just opened: a fresh read of the library starts from the first again
-    property bool fresh: false
     // The playlist a first D asked to delete
     property string pendingDelete
-    // The picker: "add" (pickFiles to a playlist) or "save" (the queue)
-    property string picking
-    property var pickFiles: []
-    property string pickWhat
     // mpc commands changing playlists, run one after another
     property var edits: []
 
-    // Both kinds alike: title, artist, cover, tracks, seconds
-    readonly property var albums: (library?.albums ?? []).map(a => Object.assign({
-            kind: "album",
-            key: `a:${a.dir}`
-        }, a))
-    readonly property var playlists: (library?.playlists ?? []).map(p => ({
-                kind: "playlist",
-                key: `p:${p.name}`,
-                name: p.name,
-                title: p.name,
-                artist: "",
-                year: "",
-                cover: p.covers[0] ?? "",
-                covers: p.covers,
-                tracks: p.tracks,
-                seconds: p.seconds,
-                missing: p.tracks.filter(t => t.missing).length
+    // Every song, with its album's title, folder and cover
+    readonly property var songs: {
+        const out = [];
+        for (const a of library?.albums ?? [])
+            for (const t of a.tracks)
+                out.push({
+                    file: t.file,
+                    title: t.title,
+                    artist: t.artist,
+                    album: a.title,
+                    dir: a.dir,
+                    cover: a.cover,
+                    seconds: t.seconds,
+                    added: t.added ?? a.added,
+                    track: t.track
+                });
+        return out;
+    }
+    readonly property var sortedSongs: {
+        const s = songs.slice();
+        const text = x => (x ?? "").toLowerCase();
+        if (songSort === 1)
+            s.sort((a, b) => text(a.title).localeCompare(text(b.title)));
+        else if (songSort === 2)
+            s.sort((a, b) => text(a.artist).localeCompare(text(b.artist)) || text(a.album).localeCompare(text(b.album)) || a.track - b.track);
+        else
+            s.sort((a, b) => b.added - a.added || text(a.album).localeCompare(text(b.album)) || a.track - b.track);
+        return s;
+    }
+    // Albums, newest first (as the script lists them), with their songs
+    readonly property var albums: (library?.albums ?? []).map(a => Object.assign({}, a, {
+                songs: songs.filter(s => s.dir === a.dir)
             }))
-    // The playlists the picker offers for what's typed: a new one by that
-    // name first, unless there is one
-    readonly property var pickChoices: {
-        if (picking !== "add")
+    // Everyone credited on a song, each with their songs and albums; "A, B
+    // feat. C" credits all three
+    readonly property var artists: {
+        const byName = {};
+        for (const s of songs)
+            for (const name of splitArtists(s.artist)) {
+                const key = name.toLowerCase();
+                const a = byName[key] ?? (byName[key] = {
+                        name: name,
+                        files: [],
+                        dirs: [],
+                        cover: ""
+                    });
+                a.files.push(s.file);
+                if (!a.dirs.includes(s.dir))
+                    a.dirs.push(s.dir);
+                if (!a.cover && s.cover)
+                    a.cover = s.cover;
+            }
+        const list = Object.values(byName).map(a => Object.assign(a, {
+                songs: a.files.length,
+                albums: a.dirs.length
+            }));
+        if (artistSort === 1)
+            list.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+        else
+            list.sort((a, b) => b.songs - a.songs || a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+        return list;
+    }
+    readonly property var songsByFile: {
+        const by = {};
+        for (const s of songs)
+            by[s.file] = s;
+        return by;
+    }
+    readonly property var playlists: library?.playlists ?? []
+    readonly property string query: field.text.trim().toLowerCase()
+    readonly property var shownSongs: search(sortedSongs, s => [s.title, s.artist, s.album])
+    readonly property var shownAlbums: search(albums, a => [a.title, a.artist])
+    readonly property var shownArtists: search(artists, a => [a.name])
+    readonly property var shownPlaylists: search(playlists, p => [p.name])
+    // The page's songs: the queue's and a playlist's follow mpd
+    readonly property var pageSongs: {
+        if (!page)
             return [];
-        const q = pickField.text.trim();
-        const names = playlists.map(p => p.name).filter(n => n.toLowerCase().includes(q.toLowerCase()));
-        const taken = playlists.some(p => p.name.toLowerCase() === q.toLowerCase());
-        return (q && !taken ? [{
-                    name: q,
-                    fresh: true
-                }] : []).concat(names.map(n => ({
-                    name: n,
-                    fresh: false
-                })));
+        if (page.kind === "queue")
+            return MpdPlayer.queue.map(q => Object.assign({}, songsByFile[q.file] ?? {}, q));
+        if (page.kind === "playlist")
+            return (playlists.find(p => p.name === page.title)?.tracks ?? []).map(t => Object.assign({}, songsByFile[t.file] ?? {}, t));
+        return page.songs;
     }
-    // The albums matching the filter, ranked as the launcher menus do: the
-    // start of the title or artist, then the start of a word, then
-    // anywhere; then the albums with a track whose title has it. Each with
-    // that track's index, when it matched by a track.
-    readonly property var matches: {
-        const all = tab === 0 ? albums : playlists;
-        const q = field.text.trim().toLowerCase();
-        if (q === "")
-            return all.map(album => ({
-                        album,
-                        hit: -1
-                    }));
-        const rank = album => {
-            const text = `${album.title} ${album.artist}`.toLowerCase();
-            if (album.title.toLowerCase().startsWith(q) || album.artist.toLowerCase().startsWith(q))
+    readonly property string pageInfo: {
+        if (page?.kind === "queue" || page?.kind === "playlist") {
+            const n = pageSongs.length;
+            const parts = [count(n, "song", "songs"), runtime(pageSongs.reduce((t, s) => t + s.seconds, 0))];
+            if (page.kind === "queue" && MpdPlayer.position >= 0)
+                parts.push(`playing ${MpdPlayer.position + 1}`);
+            const missing = pageSongs.filter(s => s.missing).length;
+            if (missing)
+                parts.push(`${missing} missing`);
+            return parts.join("  ·  ");
+        }
+        return page?.info ?? "";
+    }
+    // The list the keys move: a page's songs, else the tab's
+    readonly property var activeList: page ? pageView.list : [songList, albumGrid, artistList, playlistList][tab]
+    readonly property var current: {
+        const i = activeList?.currentIndex ?? -1;
+        if (i < 0)
+            return null;
+        if (page)
+            return pageSongs[i] ?? null;
+        return [shownSongs, shownAlbums, shownArtists, shownPlaylists][tab][i] ?? null;
+    }
+
+
+    function splitArtists(text) {
+        return (text ?? "").split(/\s*,\s*|\s+(?:feat\.?|ft\.?|featuring)\s+/i).map(s => s.trim()).filter(s => s);
+    }
+
+    // `items` matching the search, ranked as the launcher menus do: the
+    // start of its first text (a title, a name), then of another, then the
+    // start of a word, then anywhere
+    function search(items, texts) {
+        if (query === "")
+            return items;
+        const rank = item => {
+            const t = texts(item).map(x => (x ?? "").toLowerCase());
+            if (t[0].startsWith(query))
                 return 0;
-            if (text.split(/[\s\-_.:,()]+/).some(w => w.startsWith(q)))
+            if (t.slice(1).some(x => x.startsWith(query)))
                 return 1;
-            return text.includes(q) ? 2 : -1;
+            const all = t.join(" ");
+            if (all.split(/[\s\-_.:,()]+/).some(w => w.startsWith(query)))
+                return 2;
+            return all.includes(query) ? 3 : -1;
         };
-        return all.map((album, i) => {
-            const r = rank(album);
-            const hit = r < 0 ? album.tracks.findIndex(t => t.title.toLowerCase().includes(q)) : -1;
-            return {
-                album,
-                i,
-                hit,
-                r: r >= 0 ? r : hit >= 0 ? 3 : -1
-            };
-        }).filter(m => m.r >= 0).sort((a, b) => a.r - b.r || a.i - b.i);
+        return items.map((item, i) => ({
+                    item,
+                    i,
+                    r: rank(item)
+                })).filter(m => m.r >= 0).sort((a, b) => a.r - b.r || a.i - b.i).map(m => m.item);
     }
-    readonly property var items: matches.map(m => m.album)
-    readonly property var current: items[strip.currentIndex] ?? null
-    // The track of the current album the filter found, or -1
-    readonly property int currentHit: matches[strip.currentIndex]?.hit ?? -1
 
     function show() {
-        fresh = true;
         reader.running = true;
         field.text = "";
         flash = "";
-        picking = "";
-        tracksOpen = false;
-        strip.currentIndex = 0;
+        pages = [];
+        pendingDelete = "";
         open = true;
-        stopFilter();
-    }
-
-    function startFilter() {
-        filtering = true;
-        field.forceActiveFocus();
-    }
-
-    function stopFilter() {
-        filtering = false;
-        keys.forceActiveFocus();
+        for (const l of [songList, albumGrid, artistList, playlistList])
+            l.currentIndex = 0;
+        stopTyping();
     }
 
     function hide() {
@@ -160,66 +221,25 @@ Scope {
         open ? hide() : show();
     }
 
-    // "1 h 5 min", "42 min"
-    function runtime(seconds) {
-        const minutes = Math.round(seconds / 60);
-        return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+    function startTyping() {
+        pages = [];
+        typing = true;
+        field.forceActiveFocus();
+    }
+
+    function stopTyping() {
+        typing = false;
+        keys.forceActiveFocus();
     }
 
     function switchTo(index) {
-        tab = (index + 2) % 2;
-        tracksOpen = false;
-        pendingDelete = "";
-        strip.currentIndex = 0;
-        strip.positionViewAtBeginning();
-    }
-
-    // The album or playlist, from its first track, or from the track the
-    // filter found
-    function play(index) {
-        playFrom(index, matches[index]?.hit ?? -1);
-    }
-
-    // The album or playlist in place of mpd's queue, from the track at
-    // track (its first, if none). A playlist is loaded as mpd has it, which
-    // leaves out its missing songs.
-    function playFrom(index, track) {
-        const item = items[index];
-        if (!item)
-            return;
-        const from = Math.max(0, track);
-        if (item.kind === "playlist") {
-            const position = item.tracks.slice(0, from).filter(t => !t.missing).length + 1;
-            if (item.tracks.every(t => t.missing))
-                return say(`Nothing in ${item.name} to play`);
-            Quickshell.execDetached(["sh", "-c", 'mpc -q clear && mpc -q load "$1" && mpc -q play "$2"', "sh", item.name, String(position)]);
-        } else {
-            Quickshell.execDetached(["sh", "-c", 'n=$1; shift; mpc -q clear && mpc -q add "$@" && mpc -q play "$n"', "sh", String(from + 1), ...item.tracks.map(t => t.file)]);
+        pages = [];
+        tab = (index + tabs.length) % tabs.length;
+        saved.tab = tab;
+        if (activeList) {
+            activeList.currentIndex = 0;
+            activeList.positionViewAtBeginning();
         }
-        hide();
-    }
-
-    // Its songs as files, without the missing ones
-    function filesOf(item) {
-        return (item?.tracks ?? []).filter(t => !t.missing).map(t => t.file);
-    }
-
-    // The album or playlist after what's queued
-    function enqueue(index) {
-        const item = items[index];
-        if (!item || filesOf(item).length === 0)
-            return;
-        Quickshell.execDetached(item.kind === "playlist" ? ["mpc", "-q", "load", item.name] : ["mpc", "-q", "add", ...filesOf(item)]);
-        say(`Queued ${item.title}`);
-    }
-
-    // One track of the current album or playlist after what's queued
-    function enqueueTrack(track) {
-        const t = current?.tracks[track];
-        if (!t || t.missing)
-            return;
-        Quickshell.execDetached(["mpc", "-q", "add", t.file]);
-        say(`Queued ${t.title}`);
     }
 
     function say(text) {
@@ -227,21 +247,118 @@ Scope {
         flashTimer.restart();
     }
 
-    // The library as read, or as just changed, with the pick kept on the
-    // same album or playlist and track
-    function setLibrary(next) {
-        const key = current?.key;
-        const track = tracks.currentIndex;
-        library = next;
-        if (fresh) {
-            fresh = false;
-            strip.currentIndex = 0;
+    // "14 h 5 min", "42 min"
+    function runtime(seconds) {
+        const minutes = Math.round(seconds / 60);
+        return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+    }
+
+    function count(n, one, many) {
+        return `${n} ${n === 1 ? one : many}`;
+    }
+
+    function openAlbum(album) {
+        if (!album)
+            return;
+        const songs = album.songs.slice().sort((a, b) => a.track - b.track);
+        pages = pages.concat([{
+                kind: "album",
+                title: album.title,
+                subtitle: album.artist,
+                info: [album.year, count(songs.length, "song", "songs"), runtime(album.seconds)].filter(x => x).join("  ·  "),
+                cover: album.cover,
+                songs: songs
+            }]);
+        Qt.callLater(() => pageView.list.currentIndex = 0);
+    }
+
+    function openArtist(artist) {
+        if (!artist)
+            return;
+        const theirs = songs.filter(s => artist.files.includes(s.file));
+        // Their albums newest first, each in track order
+        const order = albums.map(a => a.dir);
+        theirs.sort((a, b) => order.indexOf(a.dir) - order.indexOf(b.dir) || a.track - b.track);
+        pages = pages.concat([{
+                kind: "artist",
+                title: artist.name,
+                subtitle: "",
+                info: [count(artist.songs, "song", "songs"), count(artist.albums, "album", "albums"), runtime(theirs.reduce((n, s) => n + s.seconds, 0))].join("  ·  "),
+                cover: artist.cover,
+                songs: theirs,
+                albums: albums.filter(a => artist.dirs.includes(a.dir))
+            }]);
+        Qt.callLater(() => pageView.list.currentIndex = 0);
+    }
+
+    function openPlaylist(playlist) {
+        if (!playlist)
+            return;
+        pages = pages.concat([{
+                kind: "playlist",
+                title: playlist.name,
+                subtitle: "",
+                covers: playlist.covers
+            }]);
+        Qt.callLater(() => pageView.list.currentIndex = 0);
+    }
+
+    // mpd's queue, at the song playing
+    function openQueue() {
+        if (page?.kind === "queue")
+            return;
+        const covers = [];
+        for (const q of MpdPlayer.queue) {
+            const c = songsByFile[q.file]?.cover;
+            if (c && !covers.includes(c))
+                covers.push(c);
+            if (covers.length === 4)
+                break;
+        }
+        pages = pages.concat([{
+                kind: "queue",
+                title: "Queue",
+                subtitle: "",
+                covers: covers,
+                actions: [
+                    {
+                        id: "save",
+                        label: "Save as playlist  S",
+                        icon: "add",
+                        primary: true
+                    }
+                ]
+            }]);
+        Qt.callLater(() => {
+            pageView.list.currentIndex = Math.max(0, MpdPlayer.position);
+            pageView.list.positionViewAtIndex(pageView.list.currentIndex, ListView.Center);
+        });
+    }
+
+    function back() {
+        pendingDelete = "";
+        pages = pages.slice(0, -1);
+    }
+
+    // A page's song at `index`: the queue jumps to it, the rest play from it
+    function playPage(index) {
+        if (page?.kind === "queue") {
+            MpdPlayer.playAt(index);
             return;
         }
-        const i = items.findIndex(x => x.key === key);
-        strip.currentIndex = i >= 0 ? i : Math.min(strip.currentIndex, items.length - 1);
-        if (tracksOpen)
-            tracks.currentIndex = Math.min(track, tracks.count - 1);
+        // A playlist's missing songs can't play
+        const list = pageSongs.filter((s, i) => !s.missing || i === index);
+        const from = list.indexOf(pageSongs[index]);
+        playList(list.filter(s => !s.missing), Math.max(0, list.slice(0, from).filter(s => !s.missing).length));
+    }
+
+    function pageAction(id) {
+        if (id === "play")
+            playPage(0);
+        else if (id === "shuffle")
+            shuffle(pageSongs.filter(s => !s.missing));
+        else if (id === "save")
+            saveQueue();
     }
 
     function run(command) {
@@ -257,110 +374,364 @@ Scope {
         editor.running = true;
     }
 
-    // A playlist's tracks changed here at once, ahead of mpd
+    // A playlist's songs changed here at once, ahead of mpd
     function changePlaylist(name, change) {
         const next = Object.assign({}, library);
         next.playlists = library.playlists.map(p => p.name === name ? Object.assign({}, p, {
                     tracks: change(p.tracks.slice())
                 }) : p);
-        setLibrary(next);
+        library = next;
     }
 
-    function removeTrack(i) {
-        const p = current;
-        if (p?.kind !== "playlist" || !p.tracks[i])
-            return;
-        run(["mpc", "-q", "delplaylist", p.name, String(i + 1)]);
-        changePlaylist(p.name, t => {
-            t.splice(i, 1);
-            return t;
-        });
-        tracks.currentIndex = Math.min(i, tracks.count - 1);
-    }
-
-    function moveTrack(i, by) {
-        const p = current;
+    // J/K on a playlist's or the queue's page
+    function moveSong(by) {
+        const i = pageView.list.currentIndex;
         const j = i + by;
-        if (p?.kind !== "playlist" || j < 0 || j >= p.tracks.length)
+        if (j < 0 || j >= pageSongs.length)
             return;
-        run(["mpc", "-q", "moveplaylist", p.name, String(i + 1), String(j + 1)]);
-        changePlaylist(p.name, t => {
+        if (page.kind === "queue") {
+            MpdPlayer.moveInQueue(i, j);
+            return;
+        }
+        run(["mpc", "-q", "moveplaylist", page.title, String(i + 1), String(j + 1)]);
+        changePlaylist(page.title, t => {
             t.splice(j, 0, t.splice(i, 1)[0]);
             return t;
         });
-        tracks.currentIndex = j;
     }
 
-    // D once asks, D again deletes
-    function deletePlaylist() {
-        const p = current;
-        if (p?.kind !== "playlist")
+    // d on a playlist's or the queue's page
+    function removeSong() {
+        const i = pageView.list.currentIndex;
+        const s = pageSongs[i];
+        if (!s)
             return;
-        if (pendingDelete !== p.name) {
-            say(`D again deletes ${p.name}`);
-            pendingDelete = p.name;
+        if (page.kind === "queue") {
+            MpdPlayer.removeFromQueue(i);
+        } else {
+            run(["mpc", "-q", "delplaylist", page.title, String(i + 1)]);
+            changePlaylist(page.title, t => {
+                t.splice(i, 1);
+                return t;
+            });
+        }
+        say(`Took out ${s.title}`);
+    }
+
+    // D once asks, D again deletes: the playlist picked, or open
+    function deletePlaylist() {
+        const name = page?.kind === "playlist" ? page.title : !page && tab === 3 ? current?.name : "";
+        if (!name)
+            return;
+        if (pendingDelete !== name) {
+            pendingDelete = name;
+            say(`D again deletes ${name}`);
             return;
         }
         pendingDelete = "";
-        run(["mpc", "-q", "rm", p.name]);
+        run(["mpc", "-q", "rm", name]);
         const next = Object.assign({}, library);
-        next.playlists = library.playlists.filter(x => x.name !== p.name);
-        setLibrary(next);
-        say(`Deleted ${p.name}`);
+        next.playlists = library.playlists.filter(x => x.name !== name);
+        library = next;
+        if (page?.kind === "playlist")
+            back();
+        say(`Deleted ${name}`);
     }
 
-    // The picker, for files to add (named what in its title), or to save
-    // the queue
-    function startPick(mode, files, what) {
-        if (mode === "add" && files.length === 0)
+    // p: the pick into a playlist, through the picker
+    function addToPlaylist() {
+        const files = filesOf(current);
+        if (files.length === 0)
             return;
-        picking = mode;
-        pickFiles = files;
-        pickWhat = what;
-        pickField.text = "";
-        pickList.currentIndex = 0;
-        pickField.forceActiveFocus();
+        const what = nameOf(current);
+        picker.ask("add", what, playlists.map(p => p.name), name => {
+            if (name.includes("/"))
+                return say("A playlist's name can't have a /");
+            // mpd makes the playlist if there isn't one
+            run(["mpc", "-q", "addplaylist", name, ...files]);
+            say(`Added ${what} to ${name}`);
+        });
     }
 
-    function stopPick() {
-        picking = "";
-        if (filtering)
-            field.forceActiveFocus();
-        else
-            keys.forceActiveFocus();
-    }
-
-    function confirmPick() {
-        const name = picking === "save" ? pickField.text.trim() : pickChoices[pickList.currentIndex]?.name ?? "";
-        if (name === "")
-            return;
-        if (name.includes("/"))
-            return say("A playlist's name can't have a /");
-        if (picking === "save") {
+    // S: the queue as a new playlist
+    function saveQueue() {
+        if (MpdPlayer.queue.length === 0)
+            return say("The queue is empty");
+        picker.ask("save", "", playlists.map(p => p.name), name => {
+            if (name.includes("/"))
+                return say("A playlist's name can't have a /");
             if (playlists.some(p => p.name === name))
                 return say(`${name} is already a playlist`);
             run(["mpc", "-q", "save", name]);
             say(`Saved the queue as ${name}`);
-        } else {
-            // mpd makes the playlist if there isn't one
-            run(["mpc", "-q", "addplaylist", name, ...pickFiles]);
-            say(`Added ${pickWhat} to ${name}`);
-        }
-        stopPick();
+        });
     }
 
-    // The current album's tracks, at the one the filter found
-    function openTracks() {
-        if (!current)
+    // The files of what's picked: a song, an album or an artist
+    function filesOf(item) {
+        if (!item)
+            return [];
+        if (item.file)
+            return item.missing ? [] : [item.file];
+        if (item.tracks)
+            return item.tracks.filter(t => !t.missing).map(t => t.file);
+        if (item.songs?.map)
+            return item.songs.slice().sort((a, b) => a.track - b.track).map(s => s.file);
+        return item.files ?? [];
+    }
+
+    function nameOf(item) {
+        return item?.title ?? item?.name ?? "";
+    }
+
+    // Songs from the one at `index` of `list`, the rest after it
+    function playList(list, index) {
+        if (list.length === 0)
             return;
-        tracksOpen = true;
-        tracks.currentIndex = Math.max(0, currentHit);
-        tracks.positionViewAtIndex(tracks.currentIndex, ListView.Contain);
+        MpdPlayer.playFiles(list.map(s => s.file), index);
+        hide();
     }
 
-    // "3:05"
-    function clock(seconds) {
-        return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    function shuffle(list) {
+        const files = list.map(s => s.file);
+        for (let i = files.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [files[i], files[j]] = [files[j], files[i]];
+        }
+        if (files.length > 0) {
+            MpdPlayer.playFiles(files, 0);
+            hide();
+        }
+    }
+
+    // Enter: plays a song, opens an album or an artist
+    function activate() {
+        const i = activeList?.currentIndex ?? -1;
+        if (page)
+            playPage(i);
+        else if (tab === 0)
+            playList(shownSongs, i);
+        else if (tab === 1)
+            openAlbum(current);
+        else if (tab === 2)
+            openArtist(current);
+        else if (tab === 3)
+            openPlaylist(current);
+    }
+
+    function enqueueCurrent() {
+        const files = filesOf(current);
+        if (files.length === 0)
+            return;
+        MpdPlayer.enqueue(files);
+        say(`Queued ${nameOf(current)}`);
+    }
+
+    function playNextCurrent() {
+        const files = filesOf(current);
+        if (files.length === 0)
+            return;
+        MpdPlayer.playNext(files);
+        say(`${nameOf(current)} plays next`);
+    }
+
+    function changeSort() {
+        if (tab === 0) {
+            songSort = (songSort + 1) % songSorts.length;
+            say(`By ${songSorts[songSort].toLowerCase()}`);
+        } else if (tab === 2) {
+            artistSort = (artistSort + 1) % artistSorts.length;
+            say(`By ${artistSorts[artistSort].toLowerCase()}`);
+        } else
+            return;
+        activeList.currentIndex = 0;
+    }
+
+    // The library as read, with the picks kept on the same song, album and
+    // artist
+    function setLibrary(next) {
+        const views = () => [[songList, shownSongs, s => s.file], [albumGrid, shownAlbums, a => a.dir], [artistList, shownArtists, a => a.name], [playlistList, shownPlaylists, p => p.name]];
+        const keep = views().map(([list, items, key]) => {
+            const item = items[list.currentIndex];
+            return item ? key(item) : null;
+        });
+        library = next;
+        views().forEach(([list, items, key], n) => {
+            const i = items.findIndex(x => key(x) === keep[n]);
+            list.currentIndex = i >= 0 ? i : Math.min(Math.max(0, list.currentIndex), items.length - 1);
+        });
+    }
+
+    // Keys either mode takes
+    function playerKey(event) {
+        if (typing)
+            return false;
+        if (event.text === " ")
+            MpdPlayer.mpc("toggle");
+        else if (event.text === ">")
+            MpdPlayer.mpc("next");
+        else if (event.text === "<")
+            MpdPlayer.mpc("prev");
+        else
+            return false;
+        return true;
+    }
+
+    // The album grid's moves: h/l along, j/k a row
+    function gridKey(event) {
+        if (page || tab !== 1 || event.modifiers & Qt.ControlModifier)
+            return false;
+        const t = event.text;
+        if (t === "h" || event.key === Qt.Key_Left)
+            albumGrid.moveCurrentIndexLeft();
+        else if (t === "l" || event.key === Qt.Key_Right)
+            albumGrid.moveCurrentIndexRight();
+        else if (t === "j" || event.key === Qt.Key_Down)
+            albumGrid.moveCurrentIndexDown();
+        else if (t === "k" || event.key === Qt.Key_Up)
+            albumGrid.moveCurrentIndexUp();
+        else
+            return false;
+        return true;
+    }
+
+    function listKey(event) {
+        const ctrl = event.modifiers & Qt.ControlModifier;
+        const t = event.text;
+        if (t === "?" || event.key === Qt.Key_F1) {
+            help.show(page ? pageBindings : tabBindings);
+            return true;
+        }
+        if (ctrl && event.key === Qt.Key_W) {
+            hide();
+            return true;
+        }
+        if (playerKey(event) || gridKey(event))
+            return true;
+        // A playlist's or the queue's songs move with J/K (ListKeys would
+        // take them as j/k)
+        const editable = page?.kind === "playlist" || page?.kind === "queue";
+        if (editable && !ctrl && (t === "J" || t === "K")) {
+            moveSong(t === "J" ? 1 : -1);
+            return true;
+        }
+        if (t !== "D")
+            pendingDelete = "";
+        if (activeList && listKeys.handle(event))
+            return true;
+        if (event.key === Qt.Key_Backtab || event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)) {
+            switchTo(tab - 1);
+            return true;
+        }
+        if (event.key === Qt.Key_Tab) {
+            switchTo(tab + 1);
+            return true;
+        }
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            activate();
+            return true;
+        }
+        if (page && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || t === "h")) {
+            back();
+            return true;
+        }
+        if (event.key === Qt.Key_Escape) {
+            if (field.text !== "")
+                field.text = "";
+            else
+                hide();
+            return true;
+        }
+        if (ctrl)
+            return false;
+        switch (t) {
+        case "q":
+            hide();
+            return true;
+        case "l":
+        case "o":
+            activate();
+            return true;
+        case "a":
+            enqueueCurrent();
+            return true;
+        case "N":
+            playNextCurrent();
+            return true;
+        case "P":
+            if (page)
+                pageAction("play");
+            return true;
+        case "R":
+            if (page)
+                pageAction("shuffle");
+            return true;
+        case "p":
+            addToPlaylist();
+            return true;
+        case "d":
+            if (editable)
+                removeSong();
+            return true;
+        case "D":
+            deletePlaylist();
+            return true;
+        case "Q":
+            openQueue();
+            return true;
+        case "S":
+            saveQueue();
+            return true;
+        case "s":
+            changeSort();
+            return true;
+        case "/":
+        case "i":
+            startTyping();
+            return true;
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+            switchTo(parseInt(t) - 1);
+            return true;
+        }
+        return false;
+    }
+
+    function fieldKey(event) {
+        const ctrl = event.modifiers & Qt.ControlModifier;
+        const down = event.key === Qt.Key_Down || ctrl && event.key === Qt.Key_J;
+        const up = event.key === Qt.Key_Up || ctrl && event.key === Qt.Key_K;
+        if ((down || up) && tab === 1)
+            down ? albumGrid.moveCurrentIndexRight() : albumGrid.moveCurrentIndexLeft();
+        else if (down)
+            listKeys.move(1);
+        else if (up)
+            listKeys.move(-1);
+        else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            const opens = tab !== 0;
+            activate();
+            if (opens)
+                stopTyping();
+        } else if (event.key === Qt.Key_Escape)
+            stopTyping();
+        else if (ctrl && event.key === Qt.Key_W)
+            hide();
+        else
+            return false;
+        return true;
+    }
+
+    Component.onCompleted: Panels.musicMenu = root
+
+    // The tab it was left on, kept through reloads too
+    PersistentProperties {
+        id: saved
+
+        reloadableId: "musicMenu"
+
+        property int tab: 0
     }
 
     Process {
@@ -392,18 +763,13 @@ Scope {
         id: flashTimer
 
         interval: 2500
-        onTriggered: {
-            root.flash = "";
-            root.pendingDelete = "";
-        }
+        onTriggered: root.flash = ""
     }
 
     PanelWindow {
         id: window
 
         property real reveal: 0
-        // The pick grows once the panel has sprung open
-        property bool settled: false
 
         anchors {
             top: true
@@ -422,15 +788,14 @@ Scope {
 
         Connections {
             target: root
+
             function onOpenChanged() {
                 if (root.open) {
                     closeAnim.stop();
-                    window.settled = false;
                     window.visible = true;
                     openAnim.restart();
                 } else {
                     openAnim.stop();
-                    window.settled = false;
                     closeAnim.restart();
                 }
             }
@@ -445,7 +810,6 @@ Scope {
             duration: 320
             easing.type: Easing.OutBack
             easing.overshoot: 0.8
-            onFinished: window.settled = true
         }
 
         NumberAnimation {
@@ -460,6 +824,7 @@ Scope {
             onFinished: window.visible = false
         }
 
+        // A click anywhere else closes it
         MouseArea {
             anchors.fill: parent
             onClicked: root.hide()
@@ -468,268 +833,149 @@ Scope {
         Rectangle {
             id: panel
 
-            // The tracks' room, opening and closing with them
-            property real tracksHeight: root.tracksOpen ? tracks.height + 14 : 0
-            readonly property real fullHeight: strip.y + strip.height + 20 + tracksHeight
+            // The tabs and pages all get the same room, so switching
+            // doesn't jump: eight rows
+            readonly property real contentHeight: root.maxRows * root.rowHeight + (root.maxRows - 1) * 2
+            // Room for it all, up to most of the screen
+            readonly property real fullHeight: Math.min(window.height - 32 - 60, 26 + header.height + 14 + fieldBox.height + 12 + contentHeight + (bar.visible ? 12 + bar.height : 0) + 20)
 
-            Behavior on tracksHeight {
-                NumberAnimation {
-                    duration: 300
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: Theme.emphasizedDecel
-                }
-            }
-
-            // Edge to edge across the middle of the screen, square; it
-            // opens out from its centre line
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            // Bottom centre, where the shell's menus open, growing upwards
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 16
+            width: Math.min(760, window.width - 32)
             height: Math.max(0, fullHeight * window.reveal)
+            radius: Theme.cardRadius
             color: Theme.surface_container
             clip: true
 
+            // Swallow clicks on the panel itself
             MouseArea {
                 anchors.fill: parent
             }
 
+            // Laid out at full height, so folding only uncovers it
             Item {
-                id: keys
-
-                // The first g of a gg
-                property bool pendingG: false
-
-                Timer {
-                    id: gTimer
-
-                    interval: 600
-                    onTriggered: keys.pendingG = false
-                }
-
-                Keys.onPressed: event => {
-                    if (root.tracksOpen) {
-                        event.accepted = trackKey(event);
-                        return;
-                    }
-                    const g = event.key === Qt.Key_G && event.text === "g";
-                    if (!g)
-                        pendingG = false;
-                    if (event.key !== Qt.Key_D)
-                        root.pendingDelete = "";
-                    switch (event.key) {
-                    case Qt.Key_O:
-                        root.openTracks();
-                        break;
-                    case Qt.Key_Tab:
-                        root.switchTo(root.tab + 1);
-                        break;
-                    case Qt.Key_Backtab:
-                        root.switchTo(root.tab - 1);
-                        break;
-                    case Qt.Key_P:
-                        root.startPick("add", root.filesOf(root.current), root.current?.title ?? "");
-                        break;
-                    case Qt.Key_S:
-                        if (event.text === "S")
-                            root.startPick("save", [], "");
-                        break;
-                    case Qt.Key_D:
-                        if (event.text === "D")
-                            root.deletePlaylist();
-                        break;
-                    case Qt.Key_H:
-                    case Qt.Key_K:
-                    case Qt.Key_Left:
-                    case Qt.Key_Up:
-                        strip.decrementCurrentIndex();
-                        break;
-                    case Qt.Key_L:
-                    case Qt.Key_J:
-                    case Qt.Key_Right:
-                    case Qt.Key_Down:
-                        strip.incrementCurrentIndex();
-                        break;
-                    case Qt.Key_G:
-                        // A capital can come without Shift held (wtype)
-                        if (event.text === "G") {
-                            strip.currentIndex = strip.count - 1;
-                        } else if (pendingG) {
-                            pendingG = false;
-                            strip.currentIndex = 0;
-                        } else {
-                            pendingG = true;
-                            gTimer.restart();
-                        }
-                        break;
-                    case Qt.Key_Return:
-                    case Qt.Key_Enter:
-                    case Qt.Key_Space:
-                        root.play(strip.currentIndex);
-                        break;
-                    case Qt.Key_A:
-                        root.enqueue(strip.currentIndex);
-                        break;
-                    case Qt.Key_Slash:
-                    case Qt.Key_I:
-                        root.startFilter();
-                        break;
-                    case Qt.Key_Escape:
-                        // A filter left on goes first
-                        if (field.text !== "")
-                            field.text = "";
-                        else
-                            root.hide();
-                        break;
-                    case Qt.Key_Q:
-                        root.hide();
-                        break;
-                    default:
-                        return;
-                    }
-                    event.accepted = true;
-                }
-
-                // The keys while the tracks are open
-                function trackKey(event) {
-                    const playlist = root.current?.kind === "playlist";
-                    // J and K move a playlist's track, before ListKeys takes
-                    // them as j and k
-                    if (playlist && (event.text === "J" || event.text === "K")) {
-                        root.moveTrack(tracks.currentIndex, event.text === "J" ? 1 : -1);
-                        return true;
-                    }
-                    if (trackKeys.handle(event))
-                        return true;
-                    switch (event.key) {
-                    case Qt.Key_D:
-                        if (playlist && event.text === "d")
-                            root.removeTrack(tracks.currentIndex);
-                        break;
-                    case Qt.Key_P: {
-                        const t = root.current?.tracks[tracks.currentIndex];
-                        if (t && !t.missing)
-                            root.startPick("add", [t.file], t.title);
-                        break;
-                    }
-                    case Qt.Key_Return:
-                    case Qt.Key_Enter:
-                    case Qt.Key_Space:
-                    case Qt.Key_L:
-                        root.playFrom(strip.currentIndex, tracks.currentIndex);
-                        break;
-                    case Qt.Key_A:
-                        root.enqueueTrack(tracks.currentIndex);
-                        break;
-                    case Qt.Key_H:
-                    case Qt.Key_O:
-                    case Qt.Key_Escape:
-                        root.tracksOpen = false;
-                        break;
-                    case Qt.Key_Slash:
-                    case Qt.Key_I:
-                        root.tracksOpen = false;
-                        root.startFilter();
-                        break;
-                    case Qt.Key_Q:
-                        root.hide();
-                        break;
-                    default:
-                        return false;
-                    }
-                    return true;
-                }
-            }
-
-            ListKeys {
-                id: trackKeys
-
-                list: tracks
-            }
-
-            // The title and the filter
-            Row {
-                id: header
-
                 x: 20
-                y: 22
-                height: 34
-                spacing: 18
+                y: 26
+                width: parent.width - 40
+                height: panel.fullHeight - 26 - 20
 
-                Label {
-                    height: 34
-                    verticalAlignment: Text.AlignVCenter
-                    text: "Music"
-                    color: Theme.primary
-                    font.pixelSize: 26
-                    font.weight: Theme.titleWeight
-                    roundness: Theme.titleRoundness
+                Item {
+                    id: keys
+
+                    Keys.onPressed: event => event.accepted = root.listKey(event)
                 }
 
-                // Albums and playlists, Tab between them
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 8
+                ListKeys {
+                    id: listKeys
 
-                    Repeater {
-                        model: ["Albums", "Playlists"]
+                    list: root.activeList ?? songList
+                    halfPage: root.page || root.tab !== 1 ? Math.floor(root.maxRows / 2) : root.columns
+                }
 
-                        delegate: Rectangle {
-                            id: chip
+                // The title, the tabs, and the list's size (or a word on
+                // what just happened)
+                Item {
+                    id: header
 
-                            required property string modelData
-                            required property int index
-                            readonly property bool on: index === root.tab
+                    width: parent.width
+                    height: 34
 
-                            width: chipLabel.implicitWidth + 28
-                            height: 34
-                            radius: 17
-                            color: on ? Theme.secondary_container : Theme.surface_container_high
+                    Label {
+                        id: title
 
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: Theme.animFast
+                        x: 2
+                        text: "Music"
+                        color: Theme.primary
+                        // rofi's 20 pt
+                        font.pixelSize: 26
+                        font.weight: Theme.titleWeight
+                        roundness: Theme.titleRoundness
+                    }
+
+                    Row {
+                        anchors.left: title.right
+                        anchors.leftMargin: 20
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 4
+
+                        Repeater {
+                            model: root.tabs
+
+                            Rectangle {
+                                id: chip
+
+                                required property string modelData
+                                required property int index
+                                readonly property bool on: index === root.tab
+
+                                width: chipLabel.implicitWidth + 28
+                                height: 32
+                                radius: height / 2
+                                color: on ? Theme.secondary_container : chipMouse.containsMouse ? Qt.alpha(Theme.on_surface, 0.08) : "transparent"
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: Theme.animFast
+                                    }
+                                }
+
+                                Label {
+                                    id: chipLabel
+
+                                    anchors.centerIn: parent
+                                    text: chip.modelData
+                                    color: chip.on ? Theme.on_secondary_container : Theme.on_surface_variant
+                                    font.pixelSize: 13
+                                    font.weight: chip.on ? Font.DemiBold : Font.Medium
+                                }
+
+                                MouseArea {
+                                    id: chipMouse
+
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.switchTo(chip.index)
                                 }
                             }
-
-                            Label {
-                                id: chipLabel
-
-                                anchors.centerIn: parent
-                                text: chip.modelData
-                                color: chip.on ? Theme.on_secondary_container : Theme.on_surface_variant
-                                font.pixelSize: 15
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.switchTo(chip.index)
-                            }
                         }
+                    }
+
+                    Label {
+                        anchors.right: parent.right
+                        text: {
+                            if (root.flash)
+                                return root.flash;
+                            if (root.tab === 0)
+                                return `${root.count(root.shownSongs.length, "song", "songs")}  ·  ${root.runtime(root.shownSongs.reduce((n, s) => n + s.seconds, 0))}`;
+                            if (root.tab === 1)
+                                return root.count(root.shownAlbums.length, "album", "albums");
+                            if (root.tab === 2)
+                                return root.count(root.shownArtists.length, "artist", "artists");
+                            return root.count(root.shownPlaylists.length, "playlist", "playlists");
+                        }
+                        color: root.flash ? Theme.primary : Theme.on_surface_variant
+                        font.pixelSize: 12
                     }
                 }
 
-                // The filter, outlined while typing into it
+                // Search: the open tab, as it's typed
                 Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 300
-                    height: 34
-                    radius: 17
-                    color: Theme.surface_container_highest
-                    border.width: root.filtering ? 2 : 0
+                    id: fieldBox
+
+                    anchors.top: header.bottom
+                    anchors.topMargin: 14
+                    width: parent.width
+                    height: 44
+                    radius: height / 2
+                    color: Theme.surface_container_high
+                    border.width: root.typing ? 2 : 0
                     border.color: Theme.primary
 
-                    // A click focuses it, as / does
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.IBeamCursor
-                        onClicked: root.startFilter()
-                    }
-
                     Icon {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 12
-                        anchors.verticalCenter: parent.verticalCenter
+                        x: 16
                         name: "search"
                         size: 18
                         color: Theme.on_surface_variant
@@ -739,644 +985,377 @@ Scope {
                         id: field
 
                         anchors.left: parent.left
-                        anchors.leftMargin: 38
-                        anchors.right: parent.right
-                        anchors.rightMargin: 14
+                        anchors.leftMargin: 46
+                        anchors.right: sortLabel.left
+                        anchors.rightMargin: 12
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme.on_surface
                         selectionColor: Theme.primary
                         selectedTextColor: Theme.on_primary
                         font.family: Theme.fontFamily
                         font.pixelSize: 15
-                        font.weight: Font.Medium
                         clip: true
                         onTextChanged: {
-                            root.tracksOpen = false;
-                            strip.currentIndex = 0;
-                            strip.positionViewAtBeginning();
+                            for (const l of [songList, albumGrid, artistList, playlistList])
+                                l.currentIndex = 0;
                         }
-
-                        // Typing filters; these move and leave
-                        Keys.onPressed: event => {
-                            const ctrl = event.modifiers & Qt.ControlModifier;
-                            switch (event.key) {
-                            case Qt.Key_Escape:
-                                root.stopFilter();
-                                break;
-                            case Qt.Key_Return:
-                            case Qt.Key_Enter:
-                                root.play(strip.currentIndex);
-                                break;
-                            case Qt.Key_Down:
-                            case Qt.Key_Tab:
-                                strip.incrementCurrentIndex();
-                                break;
-                            case Qt.Key_Up:
-                            case Qt.Key_Backtab:
-                                strip.decrementCurrentIndex();
-                                break;
-                            case Qt.Key_L:
-                            case Qt.Key_J:
-                            case Qt.Key_N:
-                                if (!ctrl)
-                                    return;
-                                strip.incrementCurrentIndex();
-                                break;
-                            case Qt.Key_H:
-                            case Qt.Key_K:
-                            case Qt.Key_P:
-                                if (!ctrl)
-                                    return;
-                                strip.decrementCurrentIndex();
-                                break;
-                            default:
-                                return;
-                            }
-                            event.accepted = true;
+                        Keys.onPressed: event => event.accepted = root.fieldKey(event)
+                        onActiveFocusChanged: if (activeFocus) {
+                            root.typing = true;
+                            root.pages = [];
                         }
-                    }
-
-                    Label {
-                        anchors.left: field.left
-                        visible: field.text === ""
-                        text: "Filter"
-                        color: Theme.on_surface_variant
-                        font.pixelSize: 15
-                        font.weight: Font.Normal
-                    }
-                }
-            }
-
-            // The pick's details: year, tracks, length; or what was just done
-            Label {
-                anchors.right: parent.right
-                anchors.rightMargin: 24
-                anchors.verticalCenter: header.verticalCenter
-                text: {
-                    if (root.flash)
-                        return root.flash;
-                    const a = root.current;
-                    if (!a)
-                        return "";
-                    const count = a.tracks.length === 1 ? "1 track" : `${a.tracks.length} tracks`;
-                    return [a.year, count, a.seconds ? root.runtime(a.seconds) : "", a.missing ? `${a.missing} missing` : ""].filter(b => b).join("  ·  ");
-                }
-                color: root.flash ? Theme.primary : Theme.on_surface_variant
-                font.pixelSize: 15
-            }
-
-            ListView {
-                id: strip
-
-                // A card: the cover with room above for it to grow, then
-                // two lines
-                readonly property real cardHeight: root.coverSize * root.grownScale + 12 + 52
-
-                y: header.y + header.height + 12
-                width: parent.width
-                height: cardHeight
-                orientation: ListView.Horizontal
-                interactive: false
-                spacing: 22
-                leftMargin: 32
-                rightMargin: 32
-                model: root.items
-                highlightFollowsCurrentItem: true
-                highlightRangeMode: ListView.ApplyRange
-                preferredHighlightBegin: width * 0.25
-                preferredHighlightEnd: width * 0.75
-                highlightMoveDuration: 280
-                highlight: Item {}
-
-                WheelHandler {
-                    onWheel: event => {
-                        if (event.angleDelta.y + event.angleDelta.x > 0)
-                            strip.decrementCurrentIndex();
-                        else
-                            strip.incrementCurrentIndex();
-                    }
-                }
-
-                delegate: Item {
-                    id: card
-
-                    required property var modelData
-                    required property int index
-                    readonly property var album: modelData
-                    readonly property bool isCurrent: ListView.isCurrentItem
-                    readonly property bool grown: isCurrent && window.settled
-                    readonly property bool playing: album.kind === "album" && root.library?.playing === album.dir
-
-                    width: root.coverSize
-                    height: strip.cardHeight
-
-                    // Grows upward, clear of the title below
-                    Item {
-                        id: cover
-
-                        anchors.bottom: lines.top
-                        anchors.bottomMargin: 12
-                        width: root.coverSize
-                        height: root.coverSize
-                        transformOrigin: Item.Bottom
-                        z: 1
-                        scale: card.grown ? root.grownScale : 1
-
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 300
-                                easing.type: Easing.OutBack
-                                easing.overshoot: 1.2
-                            }
-                        }
-
-                        RectangularShadow {
-                            anchors.fill: parent
-                            radius: frame.radius
-                            blur: 24
-                            offset.y: 4
-                            color: Qt.rgba(0, 0, 0, 0.35)
-                            opacity: card.grown ? 1 : 0
-
-                            Behavior on opacity {
-                                NumberAnimation {
-                                    duration: Theme.animNormal
-                                }
-                            }
-                        }
-
-                        ClippingRectangle {
-                            id: frame
-
-                            anchors.fill: parent
-                            radius: 14
-                            color: Theme.primary_container
-
-                            // No cover: a note, in its place
-                            Icon {
-                                anchors.centerIn: parent
-                                visible: !card.album.cover
-                                name: "media_music_note"
-                                size: root.coverSize * 0.4
-                                color: Theme.on_primary_container
-                            }
-
-                            Image {
-                                anchors.fill: parent
-                                visible: (card.album.covers?.length ?? 0) < 4
-                                // Only while shown, so closing frees the
-                                // decoded covers
-                                source: window.visible && card.album.cover ? "file://" + card.album.cover : ""
-                                sourceSize.width: root.coverSize * 2
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                cache: true
-                                smooth: true
-                                mipmap: true
-                            }
-
-                            // A playlist of four albums or more: their
-                            // covers, two by two
-                            Grid {
-                                anchors.fill: parent
-                                visible: (card.album.covers?.length ?? 0) >= 4
-                                columns: 2
-
-                                Repeater {
-                                    model: visible ? card.album.covers : []
-
-                                    Image {
-                                        required property string modelData
-
-                                        width: root.coverSize / 2
-                                        height: root.coverSize / 2
-                                        source: window.visible ? "file://" + modelData : ""
-                                        sourceSize.width: root.coverSize
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        cache: true
-                                        smooth: true
-                                        mipmap: true
-                                    }
-                                }
-                            }
-
-                            // The rest sit back
-                            Rectangle {
-                                anchors.fill: parent
-                                color: "black"
-                                opacity: card.isCurrent ? 0 : 0.4
-
-                                Behavior on opacity {
-                                    NumberAnimation {
-                                        duration: Theme.animNormal
-                                    }
-                                }
-                            }
-                        }
-
-                        // Playing: a chip in the corner, with the equalizer
-                        Rectangle {
-                            visible: card.playing
-                            anchors.top: parent.top
-                            anchors.right: parent.right
-                            anchors.margins: 10
-                            width: playingRow.implicitWidth + 18
-                            height: 26
-                            radius: 13
-                            // Solid, to read on any picture
-                            color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 1)
-                            opacity: card.isCurrent ? 1 : 0.7
-
-                            Row {
-                                id: playingRow
-
-                                anchors.centerIn: parent
-                                spacing: 4
-
-                                Icon {
-                                    name: "media_music_note"
-                                    size: 16
-                                    color: Qt.rgba(Theme.on_primary.r, Theme.on_primary.g, Theme.on_primary.b, 1)
-                                }
-
-                                Label {
-                                    text: "Playing"
-                                    color: Qt.rgba(Theme.on_primary.r, Theme.on_primary.g, Theme.on_primary.b, 1)
-                                    font.pixelSize: 12
-                                    font.weight: Theme.titleWeight
-                                }
-                            }
-                        }
-                    }
-
-                    Column {
-                        id: lines
-
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 52
-                        spacing: 2
 
                         Label {
                             anchors.verticalCenter: undefined
-                            width: parent.width
-                            text: card.album.title
-                            elide: Text.ElideRight
-                            color: card.isCurrent ? Theme.on_surface : Theme.on_surface_variant
-                            font.pixelSize: 16
-                            font.weight: Theme.titleWeight
-                        }
-
-                        // The artist, or the track the filter found
-                        Label {
-                            readonly property int hit: root.matches[card.index]?.hit ?? -1
-
-                            anchors.verticalCenter: undefined
-                            width: parent.width
-                            text: {
-                                const a = card.album;
-                                if (hit >= 0)
-                                    return `♪ ${a.tracks[hit].title}`;
-                                if (a.kind === "playlist")
-                                    return a.tracks.length === 1 ? "1 track" : `${a.tracks.length} tracks`;
-                                return a.artist;
-                            }
-                            elide: Text.ElideRight
-                            color: card.isCurrent ? Theme.primary : Theme.on_surface_variant
-                            font.pixelSize: 14
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: event => {
-                            if (event.button === Qt.RightButton) {
-                                strip.currentIndex = card.index;
-                                root.openTracks();
-                            } else if (card.isCurrent) {
-                                root.play(card.index);
-                            } else {
-                                strip.currentIndex = card.index;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // The current album's tracks, while open
-            ListView {
-                id: tracks
-
-                readonly property real rowHeight: 44
-                readonly property int shownRows: Math.min(count, 8)
-
-                x: 32
-                y: strip.y + strip.height + 14
-                width: parent.width - 64
-                height: shownRows * rowHeight + Math.max(0, shownRows - 1) * spacing
-                visible: root.tracksOpen || panel.tracksHeight > 0
-                opacity: root.tracksOpen ? 1 : 0
-                spacing: 2
-                clip: true
-                model: root.current?.tracks ?? []
-                boundsBehavior: Flickable.StopAtBounds
-                highlightRangeMode: ListView.ApplyRange
-                preferredHighlightBegin: 0
-                preferredHighlightEnd: height
-                highlightFollowsCurrentItem: true
-                highlightMoveDuration: 180
-                highlightMoveVelocity: -1
-                highlight: Rectangle {
-                    radius: Theme.radius
-                    color: Theme.secondary_container
-                }
-
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: Theme.animFast
-                    }
-                }
-
-                delegate: Item {
-                    id: trackRow
-
-                    required property var modelData
-                    required property int index
-                    readonly property bool isCurrent: ListView.isCurrentItem
-                    readonly property bool playing: root.library?.playing_file === modelData.file
-                    readonly property bool first: index === 0
-                    readonly property bool last: index === tracks.count - 1
-
-                    width: tracks.width
-                    height: tracks.rowHeight
-
-                    // The row's background, under the sliding highlight
-                    Rectangle {
-                        parent: tracks.contentItem
-                        z: -1
-                        x: trackRow.x
-                        y: trackRow.y
-                        width: trackRow.width
-                        height: trackRow.height
-                        topLeftRadius: trackRow.first ? Theme.radius : 3
-                        topRightRadius: trackRow.first ? Theme.radius : 3
-                        bottomLeftRadius: trackRow.last ? Theme.radius : 3
-                        bottomRightRadius: trackRow.last ? Theme.radius : 3
-                        color: Theme.surface_container_high
-                    }
-
-                    // The number, or the equalizer on the one playing
-                    Item {
-                        id: number
-
-                        x: 12
-                        width: 28
-                        height: parent.height
-
-                        Text {
-                            anchors.centerIn: parent
-                            visible: !trackRow.playing
-                            // A playlist's own order; an album's numbers
-                            text: root.current?.kind === "playlist" ? trackRow.index + 1 : trackRow.modelData.track || trackRow.index + 1
+                            visible: field.text === ""
+                            text: ["Search songs, artists and albums", "Search albums", "Search artists", "Search playlists"][root.tab] + "  ·  /     ? for keys"
                             color: Theme.on_surface_variant
-                            font.family: Theme.monoFamily
-                            font.pixelSize: 13
-                            font.weight: Font.Bold
-                        }
-
-                        Equalizer {
-                            anchors.centerIn: parent
-                            visible: trackRow.playing
-                            playing: true
-                            color: Theme.primary
+                            font: field.font
                         }
                     }
 
+                    // The order, which s changes
                     Label {
-                        anchors.left: number.right
-                        anchors.leftMargin: 12
-                        anchors.right: length.left
-                        anchors.rightMargin: 16
-                        text: {
-                            const t = trackRow.modelData;
-                            // A featured artist, say, when not the album's
-                            const other = t.artist && t.artist !== root.current?.artist ? `  ·  ${t.artist}` : "";
-                            return t.title + other;
-                        }
-                        elide: Text.ElideRight
-                        color: trackRow.playing ? Theme.primary : trackRow.modelData.missing ? Theme.outline : Theme.on_surface
-                        font.pixelSize: 15
-                    }
-
-                    Text {
-                        id: length
+                        id: sortLabel
 
                         anchors.right: parent.right
-                        anchors.rightMargin: 16
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: trackRow.modelData.missing ? "Missing" : root.clock(trackRow.modelData.seconds)
+                        anchors.rightMargin: 18
+                        visible: root.tab === 0 || root.tab === 2
+                        text: `By ${(root.tab === 0 ? root.songSorts[root.songSort] : root.artistSorts[root.artistSort]).toLowerCase()}  ·  s`
                         color: Theme.on_surface_variant
-                        font.family: Theme.monoFamily
-                        font.pixelSize: 13
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.playFrom(strip.currentIndex, trackRow.index)
-                    }
-                }
-            }
-
-            Label {
-                anchors.verticalCenter: undefined
-                anchors.centerIn: strip
-                visible: root.items.length === 0
-                text: {
-                    if (!root.library)
-                        return "Loading the library…";
-                    if (field.text.trim() !== "")
-                        return root.tab === 0 ? "No album matches" : "No playlist matches";
-                    return root.tab === 0 ? "No music yet: Entertainment → Music finds some" : "No playlists yet: p adds an album or a track to one, S saves the queue as one";
-                }
-                color: Theme.on_surface_variant
-                font.pixelSize: 20
-            }
-        }
-
-        // The picker for p and S, above the panel: a name, and for adding,
-        // the playlists matching it
-        Rectangle {
-            id: picker
-
-            readonly property int shownRows: Math.min(pickList.count, 6)
-
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: panel.top
-            anchors.bottomMargin: 14
-            width: 440
-            height: pickColumn.implicitHeight + 36
-            visible: root.picking !== "" && root.open
-            radius: Theme.cardRadius
-            color: Theme.surface_container
-
-            // Swallow clicks on it
-            MouseArea {
-                anchors.fill: parent
-            }
-
-            Column {
-                id: pickColumn
-
-                x: 18
-                y: 18
-                width: parent.width - 36
-                spacing: 12
-
-                Label {
-                    anchors.verticalCenter: undefined
-                    width: parent.width
-                    text: root.picking === "save" ? "Save the queue as" : `Add ${root.pickWhat} to`
-                    elide: Text.ElideRight
-                    color: Theme.primary
-                    font.pixelSize: 20
-                    font.weight: Theme.titleWeight
-                    roundness: Theme.titleRoundness
-                }
-
-                Rectangle {
-                    width: parent.width
-                    height: 40
-                    radius: Theme.radius
-                    color: Theme.surface_container_highest
-                    border.width: 2
-                    border.color: Theme.primary
-
-                    TextInput {
-                        id: pickField
-
-                        anchors.left: parent.left
-                        anchors.leftMargin: 14
-                        anchors.right: parent.right
-                        anchors.rightMargin: 14
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.on_surface
-                        selectionColor: Theme.primary
-                        selectedTextColor: Theme.on_primary
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 15
-                        font.weight: Font.Medium
-                        clip: true
-                        onTextChanged: pickList.currentIndex = 0
-
-                        Keys.onPressed: event => {
-                            const ctrl = event.modifiers & Qt.ControlModifier;
-                            switch (event.key) {
-                            case Qt.Key_Escape:
-                                root.stopPick();
-                                break;
-                            case Qt.Key_Return:
-                            case Qt.Key_Enter:
-                                root.confirmPick();
-                                break;
-                            case Qt.Key_Down:
-                            case Qt.Key_Tab:
-                                pickList.incrementCurrentIndex();
-                                break;
-                            case Qt.Key_Up:
-                            case Qt.Key_Backtab:
-                                pickList.decrementCurrentIndex();
-                                break;
-                            case Qt.Key_J:
-                            case Qt.Key_N:
-                                if (!ctrl)
-                                    return;
-                                pickList.incrementCurrentIndex();
-                                break;
-                            case Qt.Key_K:
-                            case Qt.Key_P:
-                                if (!ctrl)
-                                    return;
-                                pickList.decrementCurrentIndex();
-                                break;
-                            default:
-                                return;
-                            }
-                            event.accepted = true;
-                        }
-                    }
-
-                    Label {
-                        anchors.left: pickField.left
-                        visible: pickField.text === ""
-                        text: root.picking === "save" ? "Name the playlist" : "A playlist, or a new one's name"
-                        color: Theme.on_surface_variant
-                        font.pixelSize: 15
-                        font.weight: Font.Normal
-                    }
-                }
-
-                ListView {
-                    id: pickList
-
-                    readonly property real rowHeight: 40
-
-                    visible: count > 0
-                    width: parent.width
-                    height: picker.shownRows * rowHeight + Math.max(0, picker.shownRows - 1) * spacing
-                    spacing: 2
-                    clip: true
-                    model: root.pickChoices
-                    boundsBehavior: Flickable.StopAtBounds
-                    highlightMoveDuration: 150
-                    highlightMoveVelocity: -1
-                    highlight: Rectangle {
-                        radius: Theme.radius
-                        color: Theme.secondary_container
-                    }
-
-                    delegate: Item {
-                        id: choice
-
-                        required property var modelData
-                        required property int index
-
-                        width: pickList.width
-                        height: pickList.rowHeight
-
-                        Icon {
-                            id: choiceIcon
-
-                            x: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            name: choice.modelData.fresh ? "edit" : "media_music_note"
-                            size: 18
-                            color: Theme.on_surface_variant
-                        }
-
-                        Label {
-                            anchors.left: choiceIcon.right
-                            anchors.leftMargin: 12
-                            anchors.right: parent.right
-                            anchors.rightMargin: 12
-                            text: choice.modelData.fresh ? `New playlist “${choice.modelData.name}”` : choice.modelData.name
-                            elide: Text.ElideRight
-                            color: Theme.on_surface
-                            font.pixelSize: 15
-                        }
+                        font.pixelSize: 12
 
                         MouseArea {
                             anchors.fill: parent
+                            anchors.margins: -6
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                pickList.currentIndex = choice.index;
-                                root.confirmPick();
+                            onClicked: root.changeSort()
+                        }
+                    }
+                }
+
+                // The tab's view, and a page sliding in over it
+                Item {
+                    id: content
+
+                    anchors.top: fieldBox.bottom
+                    anchors.topMargin: 12
+                    width: parent.width
+                    height: panel.contentHeight
+                    clip: true
+
+                    Item {
+                        id: tabView
+
+                        width: parent.width
+                        height: parent.height
+                        x: root.page ? -32 : 0
+                        opacity: root.page ? 0 : 1
+                        visible: opacity > 0
+
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: Theme.animNormal
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Theme.emphasizedDecel
+                            }
+                        }
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Theme.animFast
+                            }
+                        }
+
+                        SongList {
+                            id: songList
+
+                            anchors.fill: parent
+                            opacity: root.tab === 0 ? 1 : 0
+                            visible: opacity > 0
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.animFast
+                                }
+                            }
+                            songs: root.shownSongs
+                            onActivated: index => root.playList(root.shownSongs, index)
+                        }
+
+                        // Albums, five across, the pick's fill sliding
+                        // between them
+                        GridView {
+                            id: albumGrid
+
+                            anchors.fill: parent
+                            opacity: root.tab === 1 ? 1 : 0
+                            visible: opacity > 0
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.animFast
+                                }
+                            }
+                            model: root.shownAlbums
+                            cellWidth: width / root.columns
+                            cellHeight: cellWidth + 46
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            highlightRangeMode: GridView.ApplyRange
+                            preferredHighlightBegin: 0
+                            preferredHighlightEnd: height
+                            highlightFollowsCurrentItem: false
+                            highlight: Rectangle {
+                                id: cellFill
+
+                                property bool settled: false
+
+                                Component.onCompleted: Qt.callLater(() => settled = true)
+
+                                x: albumGrid.currentItem?.x ?? 0
+                                y: albumGrid.currentItem?.y ?? 0
+                                width: albumGrid.cellWidth
+                                height: albumGrid.cellHeight
+                                radius: Theme.cardRadius
+                                color: Theme.secondary_container
+
+                                Behavior on x {
+                                    enabled: cellFill.settled
+                                    NumberAnimation {
+                                        duration: 220
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+                                Behavior on y {
+                                    enabled: cellFill.settled
+                                    NumberAnimation {
+                                        duration: 220
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+                            }
+
+                            delegate: AlbumCell {
+                                required property var modelData
+                                required property int index
+
+                                width: albumGrid.cellWidth
+                                height: albumGrid.cellHeight
+                                album: modelData
+                                current: index === albumGrid.currentIndex
+                                onClicked: albumGrid.currentIndex = index
+                                onActivated: root.openAlbum(modelData)
+                            }
+                        }
+
+                        // Artists, as the songs' rows
+                        ListView {
+                            id: artistList
+
+                            anchors.fill: parent
+                            opacity: root.tab === 2 ? 1 : 0
+                            visible: opacity > 0
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.animFast
+                                }
+                            }
+                            model: root.shownArtists
+                            spacing: 2
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            highlightRangeMode: ListView.ApplyRange
+                            preferredHighlightBegin: 0
+                            preferredHighlightEnd: height
+                            highlightFollowsCurrentItem: false
+                            highlight: Rectangle {
+                                id: artistFill
+
+                                property bool settled: false
+
+                                Component.onCompleted: Qt.callLater(() => settled = true)
+
+                                y: artistList.currentItem?.y ?? 0
+                                width: artistList.width
+                                height: root.rowHeight
+                                radius: Theme.radius
+                                color: Theme.secondary_container
+
+                                Behavior on y {
+                                    enabled: artistFill.settled
+                                    NumberAnimation {
+                                        duration: 220
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+                            }
+
+                            delegate: ArtistRow {
+                                id: artistRow
+
+                                required property var modelData
+                                required property int index
+
+                                width: artistList.width
+                                height: root.rowHeight
+                                artist: modelData
+                                current: index === artistList.currentIndex
+                                onClicked: artistList.currentIndex = index
+                                onActivated: root.openArtist(modelData)
+
+                                Rectangle {
+                                    parent: artistList.contentItem
+                                    z: -1
+                                    x: artistRow.x
+                                    y: artistRow.y
+                                    width: artistRow.width
+                                    height: artistRow.height
+                                    topLeftRadius: artistRow.index === 0 ? Theme.radius : 3
+                                    topRightRadius: artistRow.index === 0 ? Theme.radius : 3
+                                    bottomLeftRadius: artistRow.index === artistList.count - 1 ? Theme.radius : 3
+                                    bottomRightRadius: artistRow.index === artistList.count - 1 ? Theme.radius : 3
+                                    color: artistRow.hovered && !artistRow.current ? Theme.surface_container_highest : Theme.surface_container_high
+                                }
+                            }
+                        }
+
+                        // Playlists, as the songs' rows
+                        ListView {
+                            id: playlistList
+
+                            anchors.fill: parent
+                            opacity: root.tab === 3 ? 1 : 0
+                            visible: opacity > 0
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.animFast
+                                }
+                            }
+                            model: root.shownPlaylists
+                            spacing: 2
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            highlightRangeMode: ListView.ApplyRange
+                            preferredHighlightBegin: 0
+                            preferredHighlightEnd: height
+                            highlightFollowsCurrentItem: false
+                            highlight: Rectangle {
+                                id: playlistFill
+
+                                property bool settled: false
+
+                                Component.onCompleted: Qt.callLater(() => settled = true)
+
+                                y: playlistList.currentItem?.y ?? 0
+                                width: playlistList.width
+                                height: root.rowHeight
+                                radius: Theme.radius
+                                color: Theme.secondary_container
+
+                                Behavior on y {
+                                    enabled: playlistFill.settled
+                                    NumberAnimation {
+                                        duration: 220
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+                            }
+
+                            delegate: PlaylistRow {
+                                id: playlistRow
+
+                                required property var modelData
+                                required property int index
+
+                                width: playlistList.width
+                                height: root.rowHeight
+                                playlist: modelData
+                                current: index === playlistList.currentIndex
+                                onClicked: playlistList.currentIndex = index
+                                onActivated: root.openPlaylist(modelData)
+
+                                Rectangle {
+                                    parent: playlistList.contentItem
+                                    z: -1
+                                    x: playlistRow.x
+                                    y: playlistRow.y
+                                    width: playlistRow.width
+                                    height: playlistRow.height
+                                    topLeftRadius: playlistRow.index === 0 ? Theme.radius : 3
+                                    topRightRadius: playlistRow.index === 0 ? Theme.radius : 3
+                                    bottomLeftRadius: playlistRow.index === playlistList.count - 1 ? Theme.radius : 3
+                                    bottomRightRadius: playlistRow.index === playlistList.count - 1 ? Theme.radius : 3
+                                    color: playlistRow.hovered && !playlistRow.current ? Theme.surface_container_highest : Theme.surface_container_high
+                                }
+                            }
+                        }
+
+                        // Nothing to show, or not yet
+                        Label {
+                            anchors.centerIn: parent
+                            visible: (root.activeList?.count ?? 0) === 0
+                            text: !root.library ? "Reading the library…" : root.query ? "Nothing matches" : root.tab === 3 ? "No playlists yet: p adds songs to a new one" : "No music yet: Music search downloads it"
+                            color: Theme.on_surface_variant
+                            font.weight: Font.Normal
+                        }
+                    }
+
+                    DetailPage {
+                        id: pageView
+
+                        width: parent.width
+                        height: parent.height
+                        x: root.page ? 0 : 48
+                        opacity: root.page ? 1 : 0
+                        visible: opacity > 0
+                        page: root.page ? Object.assign({}, root.page, {
+                            info: root.pageInfo
+                        }) : null
+                        songs: root.pageSongs
+                        onPlay: index => root.playPage(index)
+                        onAction: id => root.pageAction(id)
+                        onOpenAlbum: album => root.openAlbum(album)
+                        onBack: root.back()
+
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: Theme.animNormal
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Theme.emphasizedDecel
+                            }
+                        }
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Theme.animFast
                             }
                         }
                     }
+                }
+
+                NowPlayingBar {
+                    id: bar
+
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    visible: MpdPlayer.active
+                    onOpened: root.openQueue()
+                }
+
+                // p and S's playlist picker, over it all
+                PlaylistPicker {
+                    id: picker
+
+                    anchors.margins: -12
+                    onFinished: root.typing ? field.forceActiveFocus() : keys.forceActiveFocus()
+                }
+
+                KeyHelp {
+                    id: help
+
+                    anchors.margins: -12
+                    onFinished: keys.forceActiveFocus()
                 }
             }
         }
