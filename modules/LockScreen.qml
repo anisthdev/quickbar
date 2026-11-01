@@ -318,6 +318,26 @@ Scope {
         }
     }
 
+    // The wallpaper decoded ahead of the lock, one per screen as
+    // LockSurface asks for it (same source, size and fill, so the same
+    // entry in the image cache): held here, a lock shows it at once
+    // instead of decoding a large image anew each time
+    Variants {
+        model: Quickshell.screens
+
+        Image {
+            required property var modelData
+
+            source: root.wallpaper ? "file://" + root.wallpaper : ""
+            sourceSize.width: modelData.width
+            sourceSize.height: modelData.height
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            cache: true
+            visible: false
+        }
+    }
+
     // `awww query`: "…: eDP-1: …, currently displaying: image: <path>"
     Process {
         id: wallpaperQuery
