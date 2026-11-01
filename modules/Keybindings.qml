@@ -116,7 +116,7 @@ Scope {
         entries: root.binds
     }
 
-    // `qs -p <dir> ipc call keybindings toggle`, e.g. from Super+Ctrl+K
+    // `qs -c quickbar ipc call keybindings toggle`, e.g. from Super+Ctrl+K
     IpcHandler {
         target: "keybindings"
 

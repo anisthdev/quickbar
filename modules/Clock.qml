@@ -107,7 +107,7 @@ Pill {
         owner: root
     }
 
-    // `qs -p <dir> ipc call calendar toggle`, through BarIpc: only the bar on
+    // `qs -c quickbar ipc call calendar toggle`, through BarIpc: only the bar on
     // the focused monitor opens it
     Connections {
         target: BarIpc

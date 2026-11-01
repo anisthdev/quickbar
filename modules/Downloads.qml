@@ -70,7 +70,7 @@ Pill {
         onOpenChanged: DownloadHub.watching = open
     }
 
-    // `qs -p <dir> ipc call downloads toggle`, through BarIpc: only the bar on
+    // `qs -c quickbar ipc call downloads toggle`, through BarIpc: only the bar on
     // the focused monitor opens it
     Connections {
         target: BarIpc

@@ -216,7 +216,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call glyphs toggle`, e.g. from Super+Ctrl+N
+    // `qs -c quickbar ipc call glyphs toggle`, e.g. from Super+Ctrl+N
     IpcHandler {
         target: "glyphs"
 

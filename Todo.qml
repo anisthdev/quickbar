@@ -76,7 +76,7 @@ Singleton {
         onLoadFailed: root.lines = []
     }
 
-    // `qs -p <dir> ipc call todo add "Buy milk"`
+    // `qs -c quickbar ipc call todo add "Buy milk"`
     IpcHandler {
         target: "todo"
 

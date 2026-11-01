@@ -65,7 +65,7 @@ Scope {
         onActivated: entry => entry.reel ? root.reel.show() : entry.music ? root.music.show() : entry.games ? root.games.show() : root.search.show(entry.search)
     }
 
-    // `qs -p <dir> ipc call entertainment toggle`, e.g. from Super+E
+    // `qs -c quickbar ipc call entertainment toggle`, e.g. from Super+E
     IpcHandler {
         target: "entertainment"
 

@@ -447,7 +447,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call wallpaper toggle`, e.g. from Super+Ctrl+Space
+    // `qs -c quickbar ipc call wallpaper toggle`, e.g. from Super+Ctrl+Space
     IpcHandler {
         target: "wallpaper"
 

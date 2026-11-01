@@ -17,13 +17,17 @@ Scope {
 
         title: "Power"
         onBack: Panels.controlPanel?.returnFrom("power")
+        onActivated: entry => {
+            if (entry.lock)
+                Panels.lockScreen?.lock();
+        }
 
         entries: [
             {
                 label: "Lock",
                 icon: "system-lock-screen",
-                // The lock screen (LockScreen)
-                command: ["qs", "-p", Quickshell.shellDir, "ipc", "call", "lock", "lock"]
+                // The lock screen, in this same shell (onActivated)
+                lock: true
             },
             {
                 label: "Suspend",
@@ -48,7 +52,7 @@ Scope {
         ]
     }
 
-    // `qs -p <dir> ipc call power toggle`, e.g. from Super+Escape
+    // `qs -c quickbar ipc call power toggle`, e.g. from Super+Escape
     IpcHandler {
         target: "power"
 

@@ -229,7 +229,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call emoji toggle`, e.g. from Super+.
+    // `qs -c quickbar ipc call emoji toggle`, e.g. from Super+.
     IpcHandler {
         target: "emoji"
 

@@ -903,7 +903,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call reelmenu toggle`, e.g. from Super+M
+    // `qs -c quickbar ipc call reelmenu toggle`, e.g. from Super+M
     IpcHandler {
         target: "reelmenu"
 

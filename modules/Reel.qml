@@ -936,7 +936,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call reel toggle`, e.g. from the Entertainment menu
+    // `qs -c quickbar ipc call reel toggle`, e.g. from the Entertainment menu
     IpcHandler {
         target: "reel"
 

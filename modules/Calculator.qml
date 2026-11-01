@@ -116,7 +116,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call calculator toggle`, e.g. from the Calculator key
+    // `qs -c quickbar ipc call calculator toggle`, e.g. from the Calculator key
     IpcHandler {
         target: "calculator"
 

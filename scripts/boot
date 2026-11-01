@@ -5,11 +5,9 @@
 # the lock.
 set -uo pipefail
 
-here="$(dirname "$(realpath "$0")")"
-
 # Until the lock screen is up, or 15 s if quickbar never answers
 for _ in $(seq 300); do
-    [ "$(qs -p "$here/.." ipc call lock isLocked 2>/dev/null)" = true ] && break
+    [ "$(qs -c quickbar ipc call lock isLocked 2>/dev/null)" = true ] && break
     sleep 0.05
 done
 

@@ -9,7 +9,7 @@ to share.
 
 ```
 screencopy {
-    custom_picker_binary = /home/asif/Projects/quickbar/scripts/share-picker
+    custom_picker_binary = /usr/lib/quickbar/share-picker
 }
 ```
 

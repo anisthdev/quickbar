@@ -193,7 +193,7 @@ Singleton {
         }
     }
 
-    // `qs -p <dir> ipc call timer start 10` (minutes), or focus, pause,
+    // `qs -c quickbar ipc call timer start 10` (minutes), or focus, pause,
     // resume, toggle, add 5, stop
     IpcHandler {
         target: "timer"

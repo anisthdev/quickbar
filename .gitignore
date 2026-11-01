@@ -1,0 +1,6 @@
+# makepkg
+/src/
+/pkg/
+/quickbar/
+*.pkg.tar.zst
+__pycache__/

@@ -146,7 +146,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call notifications dismiss`, e.g. from a keybind
+    // `qs -c quickbar ipc call notifications dismiss`, e.g. from a keybind
     IpcHandler {
         target: "notifications"
 

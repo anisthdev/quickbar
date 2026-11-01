@@ -93,7 +93,7 @@ Pill {
         updatedAt: root.fetchedAt
     }
 
-    // `qs -p <dir> ipc call weather toggle`, through BarIpc: only the bar on
+    // `qs -c quickbar ipc call weather toggle`, through BarIpc: only the bar on
     // the focused monitor opens it
     Connections {
         target: BarIpc

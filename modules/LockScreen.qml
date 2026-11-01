@@ -65,6 +65,8 @@ Scope {
 
     signal shake
 
+    Component.onCompleted: Panels.lockScreen = root
+
     function lock() {
         if (locked)
             return;
@@ -391,7 +393,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call lock lock`, e.g. from hypridle and the power
+    // `qs -c quickbar ipc call lock lock`, e.g. from hypridle and the power
     // menu; `… lock preview` shows it without locking, `… lock close`
     // closes the preview
     IpcHandler {

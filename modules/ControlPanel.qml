@@ -695,7 +695,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call controlpanel toggle`, e.g. from Super+Q;
+    // `qs -c quickbar ipc call controlpanel toggle`, e.g. from Super+Q;
     // `… open wifi` (or bluetooth, sound, mic, vpn) opens at a page
     IpcHandler {
         target: "controlpanel"

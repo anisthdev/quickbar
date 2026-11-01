@@ -82,7 +82,7 @@ Scope {
         onActivated: entry => root.launch(entry)
     }
 
-    // `qs -p <dir> ipc call launcher toggle`, e.g. from Super+Space
+    // `qs -c quickbar ipc call launcher toggle`, e.g. from Super+Space
     IpcHandler {
         target: "launcher"
 

@@ -76,7 +76,7 @@ Scope {
         onPromptCancelled: menu.hide()
     }
 
-    // `qs -p <dir> ipc call note toggle`, e.g. from Super+Shift+N
+    // `qs -c quickbar ipc call note toggle`, e.g. from Super+Shift+N
     IpcHandler {
         target: "note"
 

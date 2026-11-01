@@ -82,7 +82,7 @@ Scope {
         onActivated: game => Quickshell.execDetached(["retroarch", "-f", `--appendconfig=${root.quitOnClose}`, "-L", game.core, game.path])
     }
 
-    // `qs -p <dir> ipc call games toggle`
+    // `qs -c quickbar ipc call games toggle`
     IpcHandler {
         target: "games"
 

@@ -46,7 +46,7 @@ Pill {
         color: Theme.primary
     }
 
-    // `qs -p <dir> ipc call media toggle` (Super+Alt+M), through BarIpc:
+    // `qs -c quickbar ipc call media toggle` (Super+Alt+M), through BarIpc:
     // the music menu, once, from the bar on the focused monitor
     Connections {
         target: BarIpc

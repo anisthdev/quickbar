@@ -94,7 +94,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call screenshot toggle`, e.g. from Print
+    // `qs -c quickbar ipc call screenshot toggle`, e.g. from Print
     IpcHandler {
         target: "screenshot"
 
@@ -103,7 +103,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call record toggle`, e.g. from Alt+Print
+    // `qs -c quickbar ipc call record toggle`, e.g. from Alt+Print
     IpcHandler {
         target: "record"
 

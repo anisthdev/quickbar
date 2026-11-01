@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// IPC for the bar's own cards, e.g. `qs -p <dir> ipc call media toggle` from
+// IPC for the bar's own cards, e.g. `qs -c quickbar ipc call media toggle` from
 // a Hyprland keybind. Every monitor has a bar, and a handler in each would
 // all claim the same target (only the first one gets calls), so they live
 // here once and pass the call on to the bar on the focused monitor.

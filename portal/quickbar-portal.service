@@ -6,5 +6,5 @@ After=graphical-session.target
 [Service]
 Type=dbus
 BusName=org.freedesktop.impl.portal.desktop.quickbar
-ExecStart=%h/Projects/quickbar/scripts/filechooser-portal
+ExecStart=/usr/lib/quickbar/filechooser-portal
 Restart=on-failure

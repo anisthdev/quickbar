@@ -141,7 +141,7 @@ Scope {
         onActivated: item => Paste.copy(item, !(menu.pickModifiers & Qt.ShiftModifier))
     }
 
-    // `qs -p <dir> ipc call clipboard toggle`, e.g. from Super+V
+    // `qs -c quickbar ipc call clipboard toggle`, e.g. from Super+V
     IpcHandler {
         target: "clipboard"
 

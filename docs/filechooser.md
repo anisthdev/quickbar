@@ -17,20 +17,25 @@ and GTK's.
 
 ## Setup
 
-`portal/install` sets it up and asks for sudo once:
+The package (`make install`, run by the PKGBUILD) puts the pieces where
+systemd, D-Bus and xdg-desktop-portal look for them:
 
-- `portal/quickbar-portal.service` is linked into `~/.config/systemd/user`.
-- `portal/org.freedesktop.impl.portal.desktop.quickbar.service` is linked
-  into `~/.local/share/dbus-1/services`, so the first request starts the
-  service.
-- `portal/quickbar.portal` is copied to
-  `/usr/share/xdg-desktop-portal/portals`. xdg-desktop-portal only reads it
-  from there.
-- In `~/.config/xdg-desktop-portal/hyprland-portals.conf`, it sets
-  `org.freedesktop.impl.portal.FileChooser=quickbar`.
+- `portal/quickbar-portal.service` in `/usr/lib/systemd/user`, running
+  `/usr/lib/quickbar/filechooser-portal`.
+- `portal/org.freedesktop.impl.portal.desktop.quickbar.service` in
+  `/usr/share/dbus-1/services`, so the first request starts the service.
+- `portal/quickbar.portal` in `/usr/share/xdg-desktop-portal/portals`.
 
-To go back to GTK's chooser, set that line back to `gtk` and run
-`systemctl --user restart xdg-desktop-portal`.
+Choosing it is your own config. In
+`~/.config/xdg-desktop-portal/hyprland-portals.conf`:
+
+```
+[preferred]
+org.freedesktop.impl.portal.FileChooser=quickbar
+```
+
+then `systemctl --user restart xdg-desktop-portal`. To go back to GTK's
+chooser, set that line to `gtk` and restart it again.
 
 ## Which apps use it
 

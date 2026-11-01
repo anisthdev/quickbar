@@ -1361,7 +1361,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call musicmenu toggle`, e.g. from Super+Shift+M;
+    // `qs -c quickbar ipc call musicmenu toggle`, e.g. from Super+Shift+M;
     // open from the downloads dropdown's music rows
     IpcHandler {
         target: "musicmenu"

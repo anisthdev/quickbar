@@ -479,7 +479,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call region open ""` for the toolbar, or with an
+    // `qs -c quickbar ipc call region open ""` for the toolbar, or with an
     // action (copy, edit, text, translate, lens) to do it on picking
     IpcHandler {
         target: "region"

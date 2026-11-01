@@ -44,7 +44,7 @@ Pill {
         owner: root
     }
 
-    // `qs -p <dir> ipc call tasks toggle`, through BarIpc: only the bar on
+    // `qs -c quickbar ipc call tasks toggle`, through BarIpc: only the bar on
     // the focused monitor opens it, showing the count first if it's hidden
     Connections {
         target: BarIpc

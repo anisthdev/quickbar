@@ -958,7 +958,7 @@ Scope {
         }
     }
 
-    // `qs -p <dir> ipc call search open movies` (or anime, hindi, books, music, play)
+    // `qs -c quickbar ipc call search open movies` (or anime, hindi, books, music, play)
     IpcHandler {
         target: "search"
 

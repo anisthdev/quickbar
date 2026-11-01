@@ -9,4 +9,6 @@ Singleton {
     property var controlPanel: null
     // The music menu (modules/MusicMenu.qml): toggle() opens or closes it
     property var musicMenu: null
+    // The lock screen (modules/LockScreen.qml): lock() locks the session
+    property var lockScreen: null
 }
