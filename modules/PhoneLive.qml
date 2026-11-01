@@ -164,10 +164,10 @@ Item {
         spacing: 7
         color: Theme.primary_container
         stateColor: Theme.on_primary_container
-        clickable: true
+        clickable: Config.phoneMirror !== ""
         scale: Math.max(0, root.presence)
         transformOrigin: Item.Right
-        onClicked: Quickshell.execDetached(["hyprctl", "eval", "require(\"scratchpads.phone\").toggle()"])
+        onClicked: Quickshell.execDetached(["sh", "-c", Config.phoneMirror])
 
         Icon {
             visible: root.glyph !== ""

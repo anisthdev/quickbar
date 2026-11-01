@@ -24,6 +24,10 @@ Singleton {
     // tags.json }]. The glyphs are the font's own, read by
     // scripts/glyph-index
     property alias glyphFonts: adapter.glyphFonts
+    // What a click on the phone's Live Update chip runs, a shell command
+    // that shows the phone's screen (scrcpy, a scratchpad); without it the
+    // chip isn't clickable
+    property alias phoneMirror: adapter.phoneMirror
 
     FileView {
         path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickbar/config.json"
@@ -37,6 +41,7 @@ Singleton {
             property var liveIcons: ({})
             property var scratchIcons: ({})
             property var glyphFonts: []
+            property string phoneMirror: ""
         }
     }
 }
