@@ -1,6 +1,6 @@
 # Maintainer: Asif Arbaj <asifarbaj@gmail.com>
 pkgname=quickbar
-pkgver=r0
+pkgver=r93.0702565
 pkgrel=1
 pkgdesc="Keyboard-first Quickshell desktop shell for Hyprland (run with qs -c quickbar)"
 arch=('any')
