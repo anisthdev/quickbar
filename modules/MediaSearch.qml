@@ -8,7 +8,7 @@ import "../components"
 // Search Jackett for movies, anime, Hindi films or ebooks (whichever the
 // caller opened it for, named in the title), then download the pick with
 // Transmission or stream it with peerflix. Opened for "music", it searches
-// YouTube Music through tunes (~/Projects/tunes) instead: albums and songs,
+// YouTube Music through tunes (on PATH) instead: albums and songs,
 // downloaded by quickbar's runner and filed into mpd's library. Opened for
 // "play", it plays a pasted URL or magnet link, starting from a link on the
 // clipboard. The Jackett side is scripts/media-search; this is the window.
@@ -30,7 +30,7 @@ Scope {
     id: root
 
     readonly property string searchScript: Quickshell.shellDir + "/scripts/media-search"
-    readonly property string tunes: Quickshell.env("HOME") + "/Projects/tunes/tunes"
+    readonly property string tunes: "tunes"
     readonly property var kinds: [
         {
             id: "movies",

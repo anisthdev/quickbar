@@ -3,6 +3,8 @@
 #   /usr/share/quickbar                 the shell (QML, icons, data, scripts)
 #   /etc/xdg/quickshell/quickbar        → /usr/share/quickbar, where qs -c looks
 #   /usr/lib/quickbar/                  the scripts run from outside the shell
+#   /usr/bin/quickbar-download          the downloads runner, for any app
+#                                       (docs/downloads.md)
 #   systemd user unit, D-Bus activation and .portal for the file chooser
 #
 # A ~/.config/quickshell/quickbar of your own (a link to a checkout, say)
@@ -28,6 +30,8 @@ install:
 	ln -sfn $(PREFIX)/share/quickbar $(DESTDIR)/etc/xdg/quickshell/quickbar
 	install -d $(LIB)
 	for s in $(ENTRY_POINTS); do ln -sfn ../../share/quickbar/scripts/$$s $(LIB)/$$s; done
+	install -d $(DESTDIR)$(PREFIX)/bin
+	ln -sfn ../share/quickbar/scripts/download $(DESTDIR)$(PREFIX)/bin/quickbar-download
 	install -Dm644 portal/quickbar-portal.service \
 		$(DESTDIR)$(PREFIX)/lib/systemd/user/quickbar-portal.service
 	install -Dm644 portal/org.freedesktop.impl.portal.desktop.quickbar.service \

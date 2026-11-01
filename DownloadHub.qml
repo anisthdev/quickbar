@@ -193,15 +193,30 @@ Singleton {
         }
     }
 
-    // A click on its row: its own command, else its app
+    // A click on its row: its own command, else the shell's window for its
+    // app (shellWindows), else its app
     function open(download) {
         if (download.open?.length > 0) {
             const home = Quickshell.env("HOME");
             Quickshell.execDetached(download.open.map(a => String(a).replace(/^~(?=\/|$)/, home)));
             return;
         }
+        const own = shellWindows[download.app];
+        if (own) {
+            own();
+            return;
+        }
         DesktopEntries.byId(download.app)?.execute();
     }
+
+    // Apps without a desktop entry of their own whose downloads one of the
+    // shell's windows shows: tunes' music, in the music library
+    readonly property var shellWindows: ({
+            "tunes": () => {
+                if (Panels.musicMenu && !Panels.musicMenu.open)
+                    Panels.musicMenu.show();
+            }
+        })
 
     // The badge: the download's own icon, else its app's
     function iconOf(download) {

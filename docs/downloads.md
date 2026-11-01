@@ -73,10 +73,12 @@ unexpectedly"), so a crashed app doesn't leave a ring spinning for ever. An
 app that reconnects (say, after the shell restarted) sends its downloads
 again.
 
-### 2. The `download` command (scripts)
+### 2. The `quickbar-download` command (scripts)
 
-`scripts/download`, in place of today's runner, for anything that's a shell
-command away:
+`scripts/download`, installed as `quickbar-download` on PATH, for anything
+that's a shell command away. Apps should look for it on PATH and carry on
+without it (tunes runs its download itself then, with a progress
+notification):
 
 ```
 download start [--app A] [--title T] [--subtitle S] [--total N] [--open CMD]
@@ -145,7 +147,8 @@ be the way, should it ever be wanted.)
 Built: `DownloadHub` (the list, the socket, the Transmission provider,
 `poke`), `scripts/download` on the socket, the dropdown's badges, actions and
 click to open, Seedling's `seedling show <id>`, and the notification bridge.
-tunes passes `--app tunes --app-name Music --icon multimedia-audio-player
---open "qs -p ~/Projects/quickbar ipc call musicmenu open"`; older callers'
-`--kind` still works. The media search pokes Transmission after adding a
+tunes passes `--app tunes --app-name Music --icon multimedia-audio-player`,
+and a click on its row opens the music library (`shellWindows` in
+DownloadHub: tunes knows nothing of the shell); older callers' `--kind`
+still works. The media search pokes Transmission after adding a
 torrent.
