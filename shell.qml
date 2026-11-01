@@ -1,5 +1,6 @@
 //@ pragma UseQApplication
 //@ pragma IconTheme Papirus-Dark
+//@ pragma Env QT_DISABLE_SHADER_DISK_CACHE=1
 
 import Quickshell
 import Quickshell.Io
