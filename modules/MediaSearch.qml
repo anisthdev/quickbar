@@ -22,7 +22,8 @@ import "../components"
 // to the query, q or Esc closes. For music, l (or o) opens an album's
 // tracks instead, Enter still downloading all of it; a single has none to
 // open. There Space marks some, Enter or l downloads the marked ones (or
-// the one at the cursor), h or Esc goes back to the albums. Esc while typing goes back to the results,
+// the one at the cursor), h or Esc goes back to the albums. A music download
+// keeps the window open, back in the field for the next search. Esc while typing goes back to the results,
 // or closes when there are none. A search runs for as long as Jackett takes (often half a
 // minute), with a travelling wave below the field meanwhile.
 Scope {
@@ -84,6 +85,9 @@ Scope {
     property var tracks: []
     property var marked: ({})
     property var tracksJob: null
+    // Music: what was last handed to tunes, named in the title until the
+    // next search, as the window stays open for more
+    property string queued
     readonly property int markedCount: Object.keys(marked).length
 
     function show(id) {
@@ -99,6 +103,7 @@ Scope {
             field.text = "";
             clipboard.running = true;
         }
+        queued = "";
         open = true;
         type(true);
     }
@@ -138,6 +143,7 @@ Scope {
         closeAlbum();
         results = [];
         searched = "";
+        queued = "";
         phase = "idle";
     }
 
@@ -148,6 +154,7 @@ Scope {
         job?.cancel();
         closeAlbum();
         searched = query;
+        queued = "";
         phase = "searching";
         job = jobComponent.createObject(root, {
             command: current.music ? [root.tunes, "search", "--json", query] : [root.searchScript, current.id, "--json", query]
@@ -257,30 +264,36 @@ Scope {
 
     // An album, a song, or the marked tracks (else the one at index) of the
     // album open, handed to tunes, which has the runner download it; or
-    // played in mpv
+    // played in mpv. A download leaves the window open, back in the field
+    // with the query selected, to search for the next.
     function actMusic(index, stream) {
-        let command, url;
+        let command, url, name;
         if (album) {
             const picked = markedCount > 0 ? tracks.filter(t => marked[t.n]) : [tracks[index]].filter(t => t?.available);
             if (picked.length === 0)
                 return;
             url = `https://music.youtube.com/watch?v=${picked[0].videoId}`;
             command = [root.tunes, "get", album.id, "--tracks", picked.map(t => t.n).join(",")];
+            name = picked.length === 1 ? picked[0].title : `${picked.length} songs`;
         } else {
             const r = results[index];
             if (!r)
                 return;
             url = r.type === "album" ? `https://music.youtube.com/browse/${r.id}` : `https://music.youtube.com/watch?v=${r.id}`;
             command = r.type === "album" ? [root.tunes, "get", r.id] : [root.tunes, "get", "--song", r.id, ...(r.album_id ? ["--album", r.album_id] : [])];
+            name = r.title;
         }
         if (stream) {
             Quickshell.execDetached(["mpv", "--force-window=immediate", "--", url]);
-        } else {
-            // The bar's downloads ring is the confirmation, as for torrents
-            // (scripts/download reports it as soon as it starts)
-            Quickshell.execDetached(command);
+            hide();
+            return;
         }
-        hide();
+        // The bar's downloads ring shows its progress, as for torrents
+        // (scripts/download reports it as soon as it starts)
+        Quickshell.execDetached(command);
+        closeAlbum();
+        queued = name;
+        type(true);
     }
 
     function size(bytes) {
@@ -548,6 +561,8 @@ Scope {
                                 return `Opening ${root.tracksJob.album.title}…`;
                             if (root.album)
                                 return root.markedCount > 0 ? `${root.album.title} · ${root.markedCount} marked` : root.album.title;
+                            if (root.queued && root.phase !== "searching")
+                                return `Downloading ${root.queued}`;
                             switch (root.phase) {
                             case "searching":
                                 return `Searching ${root.current.noun}…`;
