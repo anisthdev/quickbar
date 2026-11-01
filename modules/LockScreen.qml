@@ -65,8 +65,6 @@ Scope {
 
     signal shake
 
-    Component.onCompleted: Panels.lockScreen = root
-
     function lock() {
         if (locked)
             return;
@@ -350,6 +348,7 @@ Scope {
 
     // Ready before the first lock, so it shows at once
     Component.onCompleted: {
+        Panels.lockScreen = root;
         wallpaperQuery.running = true;
         passwd.running = true;
     }
