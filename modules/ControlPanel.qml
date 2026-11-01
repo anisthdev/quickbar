@@ -37,7 +37,6 @@ Scope {
     // Opened straight at a page (a bar item, `ipc call controlpanel open`):
     // no first page to go back to, so Esc closes
     property bool standalone: false
-    readonly property string scripts: Quickshell.env("HOME") + "/.local/bin"
 
     // For the bar's right-clicks
     Component.onCompleted: Panels.controlPanel = root
@@ -548,11 +547,12 @@ Scope {
                 keyboard.toggle();
                 menu.hide();
             } else if (["handoff", "nightlight", "charge"].includes(key)) {
-                switcher.command = [`${scripts}/${({
+                // Commands of your own, on PATH: each switches its thing
+                switcher.command = [({
                             handoff: "toggle-handoff",
                             nightlight: "toggle-nightlight",
                             charge: "battery-limit"
-                        })[key]}`];
+                        })[key]];
                 switcher.running = true;
             } else {
                 // The next menu takes the bottom centre once this one has gone
