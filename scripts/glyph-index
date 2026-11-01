@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""An icon font's glyphs, for the glyph picker (modules/GlyphPicker.qml), as
+JSON: [{"name", "char", "code", "tags"}], in codepoint order.
+
+  glyph-index FAMILY [TAGS_JSON]
+
+FAMILY is found through fontconfig, so the file read is the one apps draw
+with. The names are the font's own glyph names (an icon font's are its
+icons', "heart"); only the Private Use Areas are kept, where icon fonts put
+their icons. TAGS_JSON, when given, is an object of glyph name → search
+words, a list or a string (Lucide's tags.json is one).
+
+Fonts are slow to parse, so the result is cached in ~/.cache/quickbar/glyphs
+and made again when the font or the tags file changes.
+"""
+import hashlib
+import json
+import logging
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+family = sys.argv[1]
+tags_path = Path(os.path.expanduser(sys.argv[2])) if len(sys.argv) > 2 and sys.argv[2] else None
+
+# fontconfig falls back to some other font for a family it lacks
+match = subprocess.run(["fc-match", "-f", "%{family}\t%{file}", family], capture_output=True, text=True).stdout
+found, _, font = match.partition("\t")
+if family.lower() not in [f.lower() for f in found.split(",")] or not os.path.exists(font):
+    sys.exit(f"glyph-index: no font named {family}")
+
+cache_dir = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "quickbar/glyphs"
+key = hashlib.sha1(f"{font}\0{tags_path or ''}".encode()).hexdigest()[:16]
+cache = cache_dir / f"{key}.json"
+sources = [Path(font)] + ([tags_path] if tags_path and tags_path.exists() else [])
+if cache.exists() and all(cache.stat().st_mtime >= s.stat().st_mtime for s in sources):
+    sys.stdout.write(cache.read_text())
+    sys.exit()
+
+logging.disable(logging.WARNING)
+from fontTools.ttLib import TTFont
+
+tags = {}
+if tags_path and tags_path.exists():
+    tags = json.loads(tags_path.read_text())
+
+
+def private(cp):
+    return 0xE000 <= cp <= 0xF8FF or cp >= 0xF0000
+
+
+def words(name):
+    t = tags.get(name, "")
+    return " ".join(t) if isinstance(t, list) else str(t)
+
+
+cmap = TTFont(font, lazy=True).getBestCmap()
+glyphs = [
+    {"name": name, "char": chr(cp), "code": f"{cp:04x}", "tags": words(name)}
+    for cp, name in sorted(cmap.items())
+    if private(cp)
+]
+
+out = json.dumps(glyphs, ensure_ascii=False)
+cache_dir.mkdir(parents=True, exist_ok=True)
+tmp = cache.with_suffix(".tmp")
+tmp.write_text(out)
+tmp.replace(cache)
+sys.stdout.write(out)

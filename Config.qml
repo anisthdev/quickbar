@@ -18,6 +18,12 @@ Singleton {
     // workspaces while one is open, in the same form as liveIcons; others
     // get a generic one
     property alias scratchIcons: adapter.scratchIcons
+    // Icon fonts the glyph picker searches besides Nerd Fonts, a tab each
+    // (Tab switches): [{ "name": tab title, "font": fontconfig family,
+    // "tags": optional JSON of glyph name → search words, e.g. Lucide's
+    // tags.json }]. The glyphs are the font's own, read by
+    // scripts/glyph-index
+    property alias glyphFonts: adapter.glyphFonts
 
     FileView {
         path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickbar/config.json"
@@ -30,6 +36,7 @@ Singleton {
 
             property var liveIcons: ({})
             property var scratchIcons: ({})
+            property var glyphFonts: []
         }
     }
 }

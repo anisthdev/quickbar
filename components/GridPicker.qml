@@ -16,7 +16,9 @@ import ".."
 // Keys: typing searches, the arrows, Tab or Ctrl+h/j/k/l move, Esc leaves
 // the field for the grid, where h/j/k/l move, gg/G go to the ends, / or i
 // search again, and q or Esc close. `extraKeys(event)` takes the grid's
-// other keys, returning true when it used one.
+// other keys, returning true when it used one. With `cycle` set, Tab and
+// Shift+Tab call it with 1 or -1 instead of moving, in the field and the
+// grid alike (the glyph picker switches fonts so), and the grid starts over.
 Scope {
     id: root
 
@@ -31,6 +33,7 @@ Scope {
     property Component header
     property bool headerShown: true
     property var extraKeys: event => false
+    property var cycle: null
 
     property int columns: 10
     property real cell: 52
@@ -84,6 +87,16 @@ Scope {
         const i = grid.currentIndex + dx + dy * columns;
         if (i >= 0 && i < grid.count)
             grid.currentIndex = i;
+    }
+
+    function next(step) {
+        if (cycle) {
+            cycle(step);
+            grid.currentIndex = 0;
+            grid.positionViewAtBeginning();
+        } else {
+            move(step, 0);
+        }
     }
 
     function pick(modifiers) {
@@ -235,6 +248,10 @@ Scope {
                     case Qt.Key_Space:
                         root.pick(event.modifiers);
                         break;
+                    case Qt.Key_Tab:
+                    case Qt.Key_Backtab:
+                        root.next(event.key === Qt.Key_Tab ? 1 : -1);
+                        break;
                     case Qt.Key_Slash:
                     case Qt.Key_I:
                         root.type();
@@ -334,10 +351,8 @@ Scope {
                                 root.move(0, -1);
                                 break;
                             case Qt.Key_Tab:
-                                root.move(1, 0);
-                                break;
                             case Qt.Key_Backtab:
-                                root.move(-1, 0);
+                                root.next(event.key === Qt.Key_Tab ? 1 : -1);
                                 break;
                             case Qt.Key_H:
                             case Qt.Key_J:
