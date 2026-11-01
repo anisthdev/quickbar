@@ -76,6 +76,15 @@ Scope {
         delete objects[key];
     }
 
+    // A download notification replaced in place by a plain message
+    Connections {
+        target: DownloadHub
+
+        function onBecameMessage(n) {
+            root.add(n);
+        }
+    }
+
     LazyLoader {
         id: server
 

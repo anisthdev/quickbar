@@ -239,6 +239,10 @@ Singleton {
     // notification id → Notification
     property var notifications: ({})
 
+    // A progress notification replaced by a plain message (a final "Done"):
+    // out of the pill, for Notifications to show as a card
+    signal becameMessage(var n)
+
     function notificationApp(n) {
         return n.desktopEntry || n.appName || "notification";
     }
@@ -252,9 +256,10 @@ Singleton {
             const update = () => {
                 if (notifications[id] !== n)
                     return;
-                if (isNaN(Number(n.hints.value)))
+                if (isNaN(Number(n.hints.value))) {
                     releaseNotification(id);
-                else
+                    becameMessage(n);
+                } else
                     showNotification(n);
             };
             n.hintsChanged.connect(update);
