@@ -27,7 +27,7 @@ Downloads only, for now: no copies, encodes or builds.
   error:    "",                 // why, when state is error
   actions:  ["pause", "cancel"],// buttons the dropdown offers: pause, resume,
                                 // cancel, dismiss
-  open:     ["~/Projects/seedling/seedling", "show", "42"],
+  open:     ["seedling", "show", "42"],
                                 // optional: what a click on its row runs (argv,
                                 // ~ expanded); else its app's desktop entry
                                 // is launched, if it has one
@@ -110,7 +110,7 @@ media search pokes after adding a torrent, so it shows up at once.
 
 Transmission's downloads have `app` Seedling's desktop entry id
 (`io.github.anisthdev.Seedling`), and a click opens Seedling on that
-torrent's details (`~/Projects/seedling/seedling show <id>`, which starts
+torrent's details (`seedling show <id>`, which starts
 Seedling if need be). Pause and resume are done by the provider (RPC).
 
 ### 4. Bridges (other people's apps)
