@@ -1,10 +1,14 @@
 # Maintainer: Asif Arbaj <asifarbaj@gmail.com>
-pkgname=quickbar
+_name=quickbar
+pkgname=totoro-quickbar
 pkgver=r93.0702565
 pkgrel=1
 pkgdesc="Keyboard-first Quickshell desktop shell for Hyprland (run with qs -c quickbar)"
 arch=('any')
 url="https://github.com/anisthdev/quickbar"
+provides=('quickbar')
+conflicts=('quickbar')
+replaces=('quickbar')
 license=('unknown')
 depends=(
     'quickshell'
@@ -25,7 +29,7 @@ optdepends=(
     'slurp: region screenshots'
     'hyprshot: screenshots'
     'wl-screenrec: screen recording'
-    'systray: the recording tray icon (tray run)'
+    'totoro-systray: the recording tray icon (tray run)'
     'satty: screenshot editing'
     'imv: screenshot preview'
     'hyprpicker: colour picker'
@@ -53,11 +57,11 @@ source=("git+$url.git")
 sha256sums=('SKIP')
 
 pkgver() {
-    cd "$pkgname"
+    cd "$_name"
     printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
 }
 
 package() {
-    cd "$pkgname"
+    cd "$_name"
     make DESTDIR="$pkgdir" PREFIX=/usr install
 }
