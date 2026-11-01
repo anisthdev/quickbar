@@ -26,14 +26,20 @@ books) indexer="tag:books" type="book" category="7000,7020,7030" ;;
     ;;
 esac
 
-# The API key and port from Jackett's own config
+# Jackett's API key and address, from quickbar's own config: KEY=VALUE
+# lines in ~/.config/quickbar/jackett (api_key, url; # comments), the key
+# as Jackett's dashboard shows it
 load_config() {
-    local config=/var/lib/jackett/ServerConfig.json
+    local config="${XDG_CONFIG_HOME:-$HOME/.config}/quickbar/jackett" key value
     api_key=""
     url="http://127.0.0.1:9117"
     [[ -r $config ]] || return 0
-    api_key="$(jq -r '.APIKey // empty' "$config")"
-    url="http://127.0.0.1:$(jq -r '.Port // 9117' "$config")"
+    while IFS='=' read -r key value; do
+        case "$key" in
+        api_key) api_key="$value" ;;
+        url) url="$value" ;;
+        esac
+    done < <(grep -v '^[[:space:]]*#' "$config")
 }
 
 # "name s:2 ep:5" → query, season, episode
@@ -134,7 +140,7 @@ case "${1:-}" in
 --json)
     shift
     load_config
-    [[ -n $api_key ]] || { echo "Missing Jackett API key" >&2; exit 2; }
+    [[ -n $api_key ]] || { echo "Missing Jackett API key (api_key= in ~/.config/quickbar/jackett)" >&2; exit 2; }
     parse_query "$*"
     [[ -n $query ]] || { echo "[]"; exit 0; }
     response="$(fetch)" || { echo "Could not reach Jackett at $url" >&2; exit 3; }

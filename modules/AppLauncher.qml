@@ -7,21 +7,16 @@ import "../components"
 // most launched first. It opens typing (see LauncherWindow for the keys),
 // and matches names first, then descriptions and keywords.
 //
-// Launch counts are rofi's own (~/.cache/rofi3.druncache, which the rofi
-// setup keeps adding to) plus quickbar's, kept in
-// ~/.local/state/quickbar/launches.json.
+// Launch counts are quickbar's own, kept in
+// ~/.local/state/quickbar/launches.json (rofi's were folded in once).
 Scope {
     id: root
 
-    // desktop id → launches, from rofi
-    property var rofiCounts: ({})
-
     function count(id) {
-        return (rofiCounts[id] ?? 0) + (launches.counts[id] ?? 0);
+        return launches.counts[id] ?? 0;
     }
 
     function show() {
-        rofiHistory.reload();
         launcher.show();
     }
 
@@ -34,23 +29,6 @@ Scope {
         counts[entry.id] = (counts[entry.id] ?? 0) + 1;
         launches.counts = counts;
         entry.app.execute();
-    }
-
-    FileView {
-        id: rofiHistory
-
-        path: Quickshell.env("HOME") + "/.cache/rofi3.druncache"
-        printErrors: false
-        // "count id.desktop" a line
-        onLoaded: {
-            const counts = {};
-            for (const line of text().split("\n")) {
-                const m = line.match(/^(\d+) (.+)\.desktop$/);
-                if (m)
-                    counts[m[2]] = Number(m[1]);
-            }
-            root.rofiCounts = counts;
-        }
     }
 
     FileView {
