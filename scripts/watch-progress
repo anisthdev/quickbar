@@ -1,46 +1,121 @@
 #!/usr/bin/env python3
-"""mpv's playback progress, for the library (modules/Reel.qml), as JSON:
+"""mpv's playback progress, and the library's own marks, for the video
+library (modules/Reel.qml, modules/ReelMenu.qml).
+
+  watch-progress                       everything below, as JSON
+  watch-progress mark watched|unwatched PATH...
+                                       mark files seen, or not seen; either
+                                       way mpv's resume point goes, so they
+                                       start from the beginning
+  watch-progress tracks ID AUDIO SUBS  the audio and subtitle languages to
+                                       play a title (a movie or series id)
+                                       in: a code ("jpn"), "" for mpv's own
+                                       choice, or SUBS "no" for none
+
+The JSON:
 
   {"resume": {WATCH_LATER_NAME: [position, mtime], ...},
-   "played": {PATH: time, ...}}
+   "played": {PATH: time, ...},
+   "marks":  {PATH: [watched, time], ...},
+   "tracks": {ID: {"audio": CODE, "subs": CODE}, ...}}
 
 resume: where each file stopped (mpv's watch_later files, save-position-on-quit)
 and when; played: when each file last played (mpv's watch history,
-save-watch-history).
+save-watch-history); marks: what was marked by hand, and when, which counts
+until the file is played again; tracks: the languages picked in the menu.
+Marks and tracks are kept in ~/.local/state/quickbar/reel.json.
 """
+import hashlib
 import json
-import sys
 import os
+import sys
+import time
 from pathlib import Path
 
-state = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "mpv"
+state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
+mpv_state = state_home / "mpv"
+own = state_home / "quickbar" / "reel.json"
 
-resume = {}
-try:
-    entries = list(os.scandir(state / "watch_later"))
-except FileNotFoundError:
-    entries = []
-for entry in entries:
+
+def load_own():
     try:
-        with open(entry.path) as f:
-            for line in f:
-                if line.startswith("start="):
-                    resume[entry.name] = [float(line[6:]), int(entry.stat().st_mtime)]
-                    break
+        data = json.loads(own.read_text())
     except (OSError, ValueError):
+        data = {}
+    return {"marks": data.get("marks", {}), "tracks": data.get("tracks", {})}
+
+
+def save_own(data):
+    own.parent.mkdir(parents=True, exist_ok=True)
+    tmp = own.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=1))
+    tmp.replace(own)
+
+
+def watch_later(path):
+    """mpv's resume file for a path: the MD5 of the path, in capitals."""
+    return mpv_state / "watch_later" / hashlib.md5(path.encode()).hexdigest().upper()
+
+
+def mark(watched, paths):
+    data = load_own()
+    now = int(time.time())
+    for path in paths:
+        data["marks"][path] = [watched, now]
+        try:
+            watch_later(path).unlink()
+        except FileNotFoundError:
+            pass
+    save_own(data)
+
+
+def tracks(item_id, audio, subs):
+    data = load_own()
+    if audio or subs:
+        data["tracks"][item_id] = {"audio": audio, "subs": subs}
+    else:
+        data["tracks"].pop(item_id, None)
+    save_own(data)
+
+
+def report():
+    resume = {}
+    try:
+        entries = list(os.scandir(mpv_state / "watch_later"))
+    except FileNotFoundError:
+        entries = []
+    for entry in entries:
+        try:
+            with open(entry.path) as f:
+                for line in f:
+                    if line.startswith("start="):
+                        resume[entry.name] = [float(line[6:]), int(entry.stat().st_mtime)]
+                        break
+        except (OSError, ValueError):
+            pass
+
+    played = {}
+    try:
+        with open(mpv_state / "watch_history.jsonl") as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if e.get("path") and e.get("time", 0) > played.get(e["path"], 0):
+                    played[e["path"]] = e["time"]
+    except FileNotFoundError:
         pass
 
-played = {}
-try:
-    with open(state / "watch_history.jsonl") as f:
-        for line in f:
-            try:
-                e = json.loads(line)
-            except ValueError:
-                continue
-            if e.get("path") and e.get("time", 0) > played.get(e["path"], 0):
-                played[e["path"]] = e["time"]
-except FileNotFoundError:
-    pass
+    json.dump({"resume": resume, "played": played, **load_own()}, sys.stdout)
 
-json.dump({"resume": resume, "played": played}, sys.stdout)
+
+args = sys.argv[1:]
+if not args:
+    report()
+elif args[0] == "mark" and len(args) >= 3 and args[1] in ("watched", "unwatched"):
+    mark(args[1] == "watched", args[2:])
+elif args[0] == "tracks" and len(args) == 4:
+    tracks(*args[1:])
+else:
+    sys.exit(__doc__.split("\n\n")[1])

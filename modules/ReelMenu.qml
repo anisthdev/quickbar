@@ -1,74 +1,99 @@
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Widgets
 import QtQuick
-import QtQuick.Effects
 import ".."
 import "../components"
+import "music"
+import "reel"
 
-// The video library as a menu, beside Reel's full-screen window: one
-// library at a time (Movies, Series or Anime) as a strip of posters across
-// the middle of the screen, from side to side, as the wallpaper picker
-// does; each with how far it's been watched in a bar below, and its title.
-// A series' card says which episode is next. Picking plays in mpv, through
-// Reel: a movie resumes where it stopped, a series carries on from the
-// next episode (the first, if it's new), and the menu closes.
+// The video library as one of the shell's menus, beside Reel's full-screen
+// window: a panel at the bottom centre that springs open upwards, as the
+// music menu does, with tabs for Continue (what's under way), Movies,
+// Series and Anime, each a grid of posters with how far it's been watched.
+// A title opens as a page over its tab (TitlePage): a movie's details, or a
+// series' seasons and episodes. Playing goes through Reel, in mpv: a movie
+// resumes where it stopped, a series plays from the episode on, the rest
+// queued, in the languages picked for it (TrackPicker). Marks (seen, not
+// seen) are kept by scripts/watch-progress, beside mpv's own progress.
 //
-// Keys: h/l (or j/k, the arrows) move, gg/G go to the first and last, m, s
-// and a open Movies, Series and Anime, Tab and Shift+Tab go round them,
-// Enter or Space plays, q or Esc closes. / or i (or a click) focuses the
-// filter, as in the other menus: typing filters the library by title,
-// Enter plays, Esc goes back to the posters keeping the filter, and Esc
-// there clears it. The mouse wheel moves; a click picks, a click on the
-// pick plays.
+// Keys, vim style: h/j/k/l move across the grid, gg/G go to the ends,
+// Ctrl+d/u by two rows. Enter (or o) opens the title, p plays it (carries
+// on), w marks it seen or not (a series: all of it), t picks its
+// languages, s changes the order (recently played, recently added, title,
+// rating, year). Tab/Shift+Tab or 1-4 switch tabs, / or i (or the search
+// icon) filter by title, Esc clears the filter and then closes, as q and
+// Ctrl+w do. On a page: j/k move through the season's episodes, [ and ]
+// change season, Enter (or l) plays the episode (a movie: resumes), P plays
+// it from its beginning, p carries on, w marks the episode seen or not, W
+// marks every one up to it seen, t picks the languages, h, Esc or
+// Backspace go back. ? lists the keys.
 Scope {
     id: root
 
     // Reel: the library, its progress and mpv
     required property var reel
 
-    readonly property real posterWidth: 220
-    readonly property real posterHeight: 330
-    readonly property real grownScale: 1.08
-
-    // The libraries, by reel's row (category) names
     readonly property var tabs: [
         {
-            key: "m",
+            label: "Continue",
+            category: ""
+        },
+        {
             label: "Movies",
             category: "Movies"
         },
         {
-            key: "s",
             label: "Series",
             category: "TV"
         },
         {
-            key: "a",
             label: "Anime",
             category: "Anime"
         }
     ]
+    readonly property var sorts: ["Recently played", "Recently added", "Title", "Rating", "Year"]
+    readonly property int columns: 6
+    // [keys, what they do], for ? (KeyHelp)
+    readonly property var gridBindings: [["h j k l", "Move"], ["gg G  Ctrl+d/u", "The ends, two rows"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["s", "Change the order"], ["1-4  Tab", "Switch tabs"], ["/  i", "Filter by title (Esc back to the grid)"], ["Esc  q", "Clear the filter, then close"]]
+    readonly property var pageBindings: [["j k  gg G", "Move through the episodes"], ["[  ]", "The season before, after"], ["Enter  l", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["Esc  h  Backspace", "Back"], ["q", "Close"]]
 
     property bool open: false
-    property int tab: 0
+    property int tab: saved.tab
+    property int sort: saved.sort
+    // Filtering: the field shows, with the keys
     property bool filtering: false
-    // The library's titles, recently played first, matching the filter
-    // ranked as the launcher menus do: the start of the title, then the
-    // start of a word in it, then anywhere in it
+    // The title whose page is open, by id, so it follows the model
+    property string pageId: ""
+    readonly property var page: pageId ? reel.model.items.find(i => i.id === pageId) ?? null : null
+    // What the right of the header says for a moment, e.g. "Marked seen"
+    property string flash
+
+    readonly property string query: field.text.trim().toLowerCase()
+    // The tab's titles, in the order picked (Continue: most recent first),
+    // matching the filter ranked as the launcher menus do
     readonly property var items: {
-        const all = reel.rows.find(r => r.name === tabs[tab].category)?.items ?? [];
-        const q = field.text.trim().toLowerCase();
-        if (q === "")
+        const category = tabs[tab].category;
+        let all;
+        if (!category) {
+            all = reel.rows.find(r => r.name === "Continue watching")?.items ?? [];
+        } else {
+            all = reel.model.items.filter(i => i.category === category);
+            const title = (a, b) => a.title.localeCompare(b.title);
+            const by = [(a, b) => b.lastPlayed - a.lastPlayed || (b.added ?? 0) - (a.added ?? 0) || title(a, b), (a, b) => (b.added ?? 0) - (a.added ?? 0) || title(a, b), title, (a, b) => (b.rating ?? 0) - (a.rating ?? 0) || title(a, b), (a, b) => (b.year ?? 0) - (a.year ?? 0) || title(a, b)][sort];
+            all = all.slice().sort(by);
+        }
+        if (query === "")
             return all;
         const rank = item => {
-            const title = item.title.toLowerCase();
-            if (title.startsWith(q))
+            const t = item.title.toLowerCase();
+            if (t.startsWith(query))
                 return 0;
-            if (title.split(/[\s\-_.:]+/).some(w => w.startsWith(q)))
+            if (t.split(/[\s\-_.:,()]+/).some(w => w.startsWith(query)))
                 return 1;
-            return title.includes(q) ? 2 : -1;
+            if (t.includes(query))
+                return 2;
+            return (item.genres ?? []).some(g => g.toLowerCase().startsWith(query)) ? 3 : -1;
         };
         return all.map((item, i) => ({
                     item,
@@ -76,23 +101,23 @@ Scope {
                     r: rank(item)
                 })).filter(m => m.r >= 0).sort((a, b) => a.r - b.r || a.i - b.i).map(m => m.item);
     }
-    readonly property var current: items[strip.currentIndex] ?? null
+    readonly property var current: items[grid.currentIndex] ?? null
+
+    // The pick to the first title, with nothing to keep it on
+    function toFirst() {
+        grid.currentIndex = 0;
+        grid.positionViewAtBeginning();
+        grid.keptId = "";
+    }
 
     function show() {
         reel.load();
         field.text = "";
-        strip.currentIndex = 0;
-        open = true;
-        stopFilter();
-    }
-
-    function startFilter() {
-        filtering = true;
-        field.forceActiveFocus();
-    }
-
-    function stopFilter() {
+        flash = "";
+        pageId = "";
         filtering = false;
+        open = true;
+        toFirst();
         keys.forceActiveFocus();
     }
 
@@ -104,24 +129,59 @@ Scope {
         open ? hide() : show();
     }
 
+    function startFilter() {
+        pageId = "";
+        filtering = true;
+        field.forceActiveFocus();
+    }
+
+    function stopFilter() {
+        filtering = false;
+        keys.forceActiveFocus();
+    }
+
     function switchTo(index) {
+        pageId = "";
         tab = (index + tabs.length) % tabs.length;
-        strip.currentIndex = 0;
-        strip.positionViewAtBeginning();
+        saved.tab = tab;
+        toFirst();
+    }
+
+    function changeSort() {
+        if (tab === 0)
+            return say("Continue keeps the latest first");
+        sort = (sort + 1) % sorts.length;
+        saved.sort = sort;
+        toFirst();
+        say(`By ${sorts[sort].toLowerCase()}`);
+    }
+
+    function say(text) {
+        flash = text;
+        flashTimer.restart();
+    }
+
+    function count(n, one, many) {
+        return `${n} ${n === 1 ? one : many}`;
     }
 
     function nextOf(item) {
-        return item.kind === "series" ? item.episodes[item.next] ?? null : null;
+        return item?.kind === "series" ? item.episodes[item.next] ?? null : null;
     }
 
-    // The bar: a movie's position; a series' episodes watched, the one
-    // going counting for its part
+    // The poster's bar: a movie's position; a series' episodes seen, the
+    // one going counting for its part
     function progressOf(item) {
         if (item.kind === "movie")
-            return item.watched ? 1 : item.progress;
+            return item.watched ? 0 : item.progress;
         const done = item.episodes.filter(e => e.watched).length;
-        const going = nextOf(item)?.progress ?? 0;
-        return (done + going) / Math.max(1, item.episodes.length);
+        if (done === item.episodes.length)
+            return 0;
+        return (done + (nextOf(item)?.progress ?? 0)) / Math.max(1, item.episodes.length);
+    }
+
+    function seenAll(item) {
+        return item.kind === "movie" ? item.watched : item.episodes.length > 0 && item.episodes.every(e => e.watched);
     }
 
     // Under the title: where it's at
@@ -129,39 +189,263 @@ Scope {
         if (item.kind === "movie") {
             if (item.position > 0)
                 return reel.left(item);
-            if (item.watched)
-                return "Watched";
-            return [item.year ?? "", item.duration ? reel.runtime(item.duration) : ""].filter(b => b !== "").join("  ·  ");
+            return [item.year || "", item.duration ? reel.runtime(item.duration) : ""].filter(b => b !== "").join("  ·  ");
         }
         const next = nextOf(item);
-        if (next)
-            return `${reel.code(next)}  ·  ${item.next + 1} of ${item.episodes.length}`;
-        if (item.lastPlayed > 0)
-            return `Watched  ·  ${item.episodes.length} episodes`;
-        return `New  ·  ${item.episodes.length} episodes`;
+        if (next && item.started)
+            return next.position > 0 ? `${reel.code(next)}  ·  ${reel.left(next)}` : `${reel.code(next)}  ·  ${item.next + 1} of ${item.episodes.length}`;
+        return [item.year || "", count(item.episodes.length, "episode", "episodes")].filter(b => b !== "").join("  ·  ");
     }
 
-    // Seen to the end: a movie, or every episode of a series
-    function watchedAll(item) {
-        return item.kind === "movie" ? item.watched : item.episodes.every(e => e.watched);
-    }
-
-    // A movie resumes; a series carries on from its next episode, or
-    // starts at the first
-    function play(index) {
-        const item = items[index];
+    function openPage(item) {
         if (!item)
             return;
-        reel.play(item, item.kind === "movie" ? 0 : Math.max(0, item.next));
+        pageId = item.id;
+        if (item.kind === "series")
+            Qt.callLater(() => pageView.showEpisode(Math.max(0, item.next)));
+    }
+
+    function back() {
+        pageId = "";
+    }
+
+    // A movie resumes (or starts over); a series plays from the episode,
+    // the rest queued after it
+    function play(item, index, fromStart) {
+        if (!item)
+            return;
+        reel.play(item, item.kind === "movie" ? 0 : Math.max(0, index), fromStart);
         hide();
+    }
+
+    // p: carry on, from the grid or a page
+    function carryOn(item) {
+        if (item)
+            play(item, item.kind === "series" ? item.next : 0, false);
+    }
+
+    // w on the grid: a movie, or all of a series, seen or not
+    function toggleSeen(item) {
+        if (!item)
+            return;
+        const seen = seenAll(item);
+        grid.keptId = item.id;
+        reel.mark(item.kind === "movie" ? [item] : item.episodes, !seen);
+        say(seen ? `${item.title}: not seen` : `${item.title}: seen`);
+    }
+
+    // w on a page: the movie, or the episode picked
+    function toggleSeenOnPage() {
+        if (!page)
+            return;
+        if (page.kind === "movie")
+            return toggleSeen(page);
+        const e = page.episodes[pageView.pick];
+        if (!e)
+            return;
+        reel.mark([e], !e.watched);
+        say(`${reel.code(e)}: ${e.watched ? "not seen" : "seen"}`);
+    }
+
+    // W: every episode up to the one picked
+    function seenUpTo() {
+        if (page?.kind !== "series" || pageView.pick < 0)
+            return;
+        const upTo = page.episodes.slice(0, pageView.pick + 1);
+        reel.mark(upTo.filter(e => !e.watched), true);
+        say(`Seen up to ${reel.code(page.episodes[pageView.pick])}`);
+    }
+
+    // t: the title's languages, through the picker
+    function pickTracks(item) {
+        if (!item)
+            return;
+        const files = item.kind === "series" ? item.episodes : [item];
+        const langs = kind => [...new Set(files.reduce((all, f) => all.concat(f[kind] ?? []), []))].sort();
+        picker.ask(item.title, langs("audio"), langs("subs"), item.tracks, (audio, subs) => {
+            reel.setTracks(item, audio, subs);
+            say(audio || subs ? "Languages kept" : "Languages: mpv's choice");
+        });
+    }
+
+    function pageAction(id) {
+        if (!page)
+            return;
+        if (id === "play")
+            carryOn(page);
+        else if (id === "start")
+            play(page, 0, true);
+        else if (id === "watched")
+            toggleSeen(page);
+        else if (id === "upto")
+            seenUpTo();
+        else if (id === "tracks")
+            pickTracks(page);
+    }
+
+    // Enter: opens the title; on a page, plays the episode (a movie resumes)
+    function activate() {
+        if (!page)
+            openPage(current);
+        else if (page.kind === "movie")
+            play(page, 0, false);
+        else if (pageView.pick >= 0)
+            play(page, pageView.pick, false);
+    }
+
+    // The grid's moves: h/l along, j/k a row
+    function gridKey(event) {
+        if (page || event.modifiers & Qt.ControlModifier)
+            return false;
+        const t = event.text;
+        if (t === "h" || event.key === Qt.Key_Left)
+            grid.moveCurrentIndexLeft();
+        else if (t === "l" || event.key === Qt.Key_Right)
+            grid.moveCurrentIndexRight();
+        else if (t === "j" || event.key === Qt.Key_Down)
+            grid.moveCurrentIndexDown();
+        else if (t === "k" || event.key === Qt.Key_Up)
+            grid.moveCurrentIndexUp();
+        else
+            return false;
+        return true;
+    }
+
+    function listKey(event) {
+        const ctrl = event.modifiers & Qt.ControlModifier;
+        const t = event.text;
+        if (t === "?" || event.key === Qt.Key_F1) {
+            help.show(page ? pageBindings : gridBindings);
+            return true;
+        }
+        if (ctrl && event.key === Qt.Key_W) {
+            hide();
+            return true;
+        }
+        if (gridKey(event))
+            return true;
+        // On a page, the keys move the episodes; a movie's has none
+        if (page?.kind === "series" && listKeys.handle(event))
+            return true;
+        if (!page && listKeys.handle(event))
+            return true;
+        if (event.key === Qt.Key_Backtab || event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)) {
+            switchTo(tab - 1);
+            return true;
+        }
+        if (event.key === Qt.Key_Tab) {
+            switchTo(tab + 1);
+            return true;
+        }
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            activate();
+            return true;
+        }
+        if (page && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || t === "h")) {
+            back();
+            return true;
+        }
+        if (event.key === Qt.Key_Escape) {
+            if (field.text !== "")
+                field.text = "";
+            else
+                hide();
+            return true;
+        }
+        if (ctrl)
+            return false;
+        switch (t) {
+        case "q":
+            hide();
+            return true;
+        case "o":
+            if (!page)
+                openPage(current);
+            return true;
+        case "l":
+            // On the grid, l moves (gridKey); on a page it plays
+            activate();
+            return true;
+        case "p":
+            carryOn(page ?? current);
+            return true;
+        case "P":
+            if (page?.kind === "movie")
+                play(page, 0, true);
+            else if (page && pageView.pick >= 0)
+                play(page, pageView.pick, true);
+            return true;
+        case "w":
+            page ? toggleSeenOnPage() : toggleSeen(current);
+            return true;
+        case "W":
+            seenUpTo();
+            return true;
+        case "t":
+            pickTracks(page ?? current);
+            return true;
+        case "[":
+        case "]":
+            if (page)
+                pageView.changeSeason(t === "]" ? 1 : -1);
+            return true;
+        case "s":
+            if (!page)
+                changeSort();
+            return true;
+        case "/":
+        case "i":
+            startFilter();
+            return true;
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+            switchTo(parseInt(t) - 1);
+            return true;
+        }
+        return false;
+    }
+
+    function fieldKey(event) {
+        const ctrl = event.modifiers & Qt.ControlModifier;
+        if (event.key === Qt.Key_Down || ctrl && event.key === Qt.Key_J)
+            grid.moveCurrentIndexRight();
+        else if (event.key === Qt.Key_Up || ctrl && event.key === Qt.Key_K)
+            grid.moveCurrentIndexLeft();
+        else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            stopFilter();
+            openPage(current);
+        } else if (event.key === Qt.Key_Escape)
+            stopFilter();
+        else if (ctrl && event.key === Qt.Key_W)
+            hide();
+        else
+            return false;
+        return true;
+    }
+
+    // The tab and order it was left on, kept through reloads too
+    PersistentProperties {
+        id: saved
+
+        reloadableId: "reelMenu"
+
+        property int tab: 1
+        property int sort: 0
+    }
+
+    Timer {
+        id: flashTimer
+
+        interval: 2500
+        onTriggered: root.flash = ""
     }
 
     PanelWindow {
         id: window
 
         property real reveal: 0
-        // The pick grows once the panel has sprung open
-        property bool settled: false
 
         anchors {
             top: true
@@ -180,15 +464,14 @@ Scope {
 
         Connections {
             target: root
+
             function onOpenChanged() {
                 if (root.open) {
                     closeAnim.stop();
-                    window.settled = false;
                     window.visible = true;
                     openAnim.restart();
                 } else {
                     openAnim.stop();
-                    window.settled = false;
                     closeAnim.restart();
                 }
             }
@@ -203,7 +486,6 @@ Scope {
             duration: 320
             easing.type: Easing.OutBack
             easing.overshoot: 0.8
-            onFinished: window.settled = true
         }
 
         NumberAnimation {
@@ -218,6 +500,7 @@ Scope {
             onFinished: window.visible = false
         }
 
+        // A click anywhere else closes it
         MouseArea {
             anchors.fill: parent
             onClicked: root.hide()
@@ -226,560 +509,411 @@ Scope {
         Rectangle {
             id: panel
 
-            readonly property real fullHeight: strip.y + strip.height + 20
+            // Two rows of posters; a page gets the same room
+            readonly property real cellWidth: (width - 40) / root.columns
+            readonly property real cellHeight: (cellWidth - 16) * 1.5 + 16 + 44
+            readonly property real contentHeight: 2 * cellHeight
+            readonly property real fullHeight: Math.min(window.height - 32 - 60, 26 + header.height + fieldBox.height + 12 + contentHeight + 20)
 
-            // Edge to edge across the middle of the screen, square; it
-            // opens out from its centre line
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            // Bottom centre, where the shell's menus open, growing upwards
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 16
+            width: Math.min(1000, window.width - 32)
             height: Math.max(0, fullHeight * window.reveal)
+            radius: Theme.cardRadius
             color: Theme.surface_container
             clip: true
 
+            // Swallow clicks on the panel itself
             MouseArea {
                 anchors.fill: parent
             }
 
+            // Laid out at full height, so folding only uncovers it
             Item {
-                id: keys
-
-                // The first g of a gg
-                property bool pendingG: false
-
-                Timer {
-                    id: gTimer
-
-                    interval: 600
-                    onTriggered: keys.pendingG = false
-                }
-
-                Keys.onPressed: event => {
-                    const g = event.key === Qt.Key_G && event.text === "g";
-                    if (!g)
-                        pendingG = false;
-                    const tab = root.tabs.findIndex(t => t.key === event.text);
-                    if (tab >= 0) {
-                        root.switchTo(tab);
-                        event.accepted = true;
-                        return;
-                    }
-                    switch (event.key) {
-                    case Qt.Key_H:
-                    case Qt.Key_K:
-                    case Qt.Key_Left:
-                    case Qt.Key_Up:
-                        strip.decrementCurrentIndex();
-                        break;
-                    case Qt.Key_L:
-                    case Qt.Key_J:
-                    case Qt.Key_Right:
-                    case Qt.Key_Down:
-                        strip.incrementCurrentIndex();
-                        break;
-                    case Qt.Key_Tab:
-                        root.switchTo(root.tab + 1);
-                        break;
-                    case Qt.Key_Backtab:
-                        root.switchTo(root.tab - 1);
-                        break;
-                    case Qt.Key_G:
-                        // A capital can come without Shift held (wtype)
-                        if (event.text === "G") {
-                            strip.currentIndex = strip.count - 1;
-                        } else if (pendingG) {
-                            pendingG = false;
-                            strip.currentIndex = 0;
-                        } else {
-                            pendingG = true;
-                            gTimer.restart();
-                        }
-                        break;
-                    case Qt.Key_Return:
-                    case Qt.Key_Enter:
-                    case Qt.Key_Space:
-                        root.play(strip.currentIndex);
-                        break;
-                    case Qt.Key_Slash:
-                    case Qt.Key_I:
-                        root.startFilter();
-                        break;
-                    case Qt.Key_Escape:
-                        // A filter left on goes first
-                        if (field.text !== "")
-                            field.text = "";
-                        else
-                            root.hide();
-                        break;
-                    case Qt.Key_Q:
-                        root.hide();
-                        break;
-                    default:
-                        return;
-                    }
-                    event.accepted = true;
-                }
-            }
-
-            // The title and the libraries, with their keys
-            Row {
-                id: header
-
                 x: 20
-                y: 22
-                height: 34
-                spacing: 18
+                y: 26
+                width: parent.width - 40
+                height: panel.fullHeight - 26 - 20
 
-                Label {
-                    height: 34
-                    verticalAlignment: Text.AlignVCenter
-                    text: "Reel"
-                    color: Theme.primary
-                    font.pixelSize: 26
-                    font.weight: Theme.titleWeight
-                    roundness: Theme.titleRoundness
+                Item {
+                    id: keys
+
+                    Keys.onPressed: event => event.accepted = root.listKey(event)
                 }
 
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 8
+                ListKeys {
+                    id: listKeys
 
-                    Repeater {
-                        model: root.tabs
+                    list: root.page ? pageView.list : grid
+                    halfPage: root.page ? 3 : 2 * root.columns
+                }
 
-                        delegate: Rectangle {
-                            id: chip
+                // The title, the tabs, and the tab's size and order (or a
+                // word on what just happened), and the filter's button
+                Item {
+                    id: header
 
-                            required property var modelData
-                            required property int index
-                            readonly property bool on: index === root.tab
+                    width: parent.width
+                    height: 34
 
-                            width: chipRow.implicitWidth + 28
-                            height: 34
-                            radius: 17
-                            color: on ? Theme.secondary_container : Theme.surface_container_high
+                    Label {
+                        id: title
 
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: Theme.animFast
+                        x: 2
+                        text: "Videos"
+                        color: Theme.primary
+                        font.pixelSize: 26
+                        font.weight: Theme.titleWeight
+                        roundness: Theme.titleRoundness
+                    }
+
+                    Row {
+                        anchors.left: title.right
+                        anchors.leftMargin: 20
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 4
+
+                        Repeater {
+                            model: root.tabs
+
+                            Rectangle {
+                                id: chip
+
+                                required property var modelData
+                                required property int index
+                                readonly property bool on: index === root.tab
+
+                                width: chipLabel.implicitWidth + 28
+                                height: 32
+                                radius: height / 2
+                                color: on ? Theme.secondary_container : chipMouse.containsMouse ? Qt.alpha(Theme.on_surface, 0.08) : "transparent"
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: Theme.animFast
+                                    }
                                 }
-                            }
-
-                            Row {
-                                id: chipRow
-
-                                anchors.centerIn: parent
-                                spacing: 8
 
                                 Label {
+                                    id: chipLabel
+
+                                    anchors.centerIn: parent
                                     text: chip.modelData.label
                                     color: chip.on ? Theme.on_secondary_container : Theme.on_surface_variant
-                                    font.pixelSize: 15
-                                }
-
-                                Label {
-                                    text: chip.modelData.key
-                                    color: chip.on ? Theme.on_secondary_container : Theme.outline
-                                    opacity: 0.7
-                                    font.family: Theme.monoFamily
                                     font.pixelSize: 13
+                                    font.weight: chip.on ? Font.DemiBold : Font.Medium
+                                }
+
+                                MouseArea {
+                                    id: chipMouse
+
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.switchTo(chip.index)
                                 }
                             }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.switchTo(chip.index)
-                            }
-                        }
-                    }
-                }
-
-                // The filter, outlined while typing into it
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 300
-                    height: 34
-                    radius: 17
-                    color: Theme.surface_container_highest
-                    border.width: root.filtering ? 2 : 0
-                    border.color: Theme.primary
-
-                    // A click focuses it, as / does
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.IBeamCursor
-                        onClicked: root.startFilter()
-                    }
-
-                    Icon {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                        name: "search"
-                        size: 18
-                        color: Theme.on_surface_variant
-                    }
-
-                    TextInput {
-                        id: field
-
-                        anchors.left: parent.left
-                        anchors.leftMargin: 38
-                        anchors.right: parent.right
-                        anchors.rightMargin: 14
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.on_surface
-                        selectionColor: Theme.primary
-                        selectedTextColor: Theme.on_primary
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 15
-                        font.weight: Font.Medium
-                        clip: true
-                        onTextChanged: {
-                            strip.currentIndex = 0;
-                            strip.positionViewAtBeginning();
-                        }
-
-                        // Typing filters; these move and leave
-                        Keys.onPressed: event => {
-                            const ctrl = event.modifiers & Qt.ControlModifier;
-                            switch (event.key) {
-                            case Qt.Key_Escape:
-                                root.stopFilter();
-                                break;
-                            case Qt.Key_Return:
-                            case Qt.Key_Enter:
-                                root.play(strip.currentIndex);
-                                break;
-                            case Qt.Key_Down:
-                            case Qt.Key_Tab:
-                                strip.incrementCurrentIndex();
-                                break;
-                            case Qt.Key_Up:
-                            case Qt.Key_Backtab:
-                                strip.decrementCurrentIndex();
-                                break;
-                            case Qt.Key_L:
-                            case Qt.Key_J:
-                            case Qt.Key_N:
-                                if (!ctrl)
-                                    return;
-                                strip.incrementCurrentIndex();
-                                break;
-                            case Qt.Key_H:
-                            case Qt.Key_K:
-                            case Qt.Key_P:
-                                if (!ctrl)
-                                    return;
-                                strip.decrementCurrentIndex();
-                                break;
-                            default:
-                                return;
-                            }
-                            event.accepted = true;
                         }
                     }
 
                     Label {
-                        anchors.left: field.left
-                        visible: field.text === ""
-                        text: "Filter"
-                        color: Theme.on_surface_variant
-                        font.pixelSize: 15
-                        font.weight: Font.Normal
+                        anchors.right: searchButton.left
+                        anchors.rightMargin: 12
+                        text: {
+                            if (root.flash)
+                                return root.flash;
+                            const n = root.count(root.items.length, "title", "titles");
+                            return root.tab === 0 || root.page ? n : `${n}  ·  ${root.sorts[root.sort].toLowerCase()}  s`;
+                        }
+                        color: root.flash ? Theme.primary : Theme.on_surface_variant
+                        font.pixelSize: 12
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -6
+                            enabled: !root.flash && !root.page
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.changeSort()
+                        }
                     }
-                }
-            }
 
-            // The pick's details: year, rating, genres
-            Label {
-                anchors.right: parent.right
-                anchors.rightMargin: 24
-                anchors.verticalCenter: header.verticalCenter
-                text: {
-                    const i = root.current;
-                    if (!i)
-                        return "";
-                    const bits = [];
-                    if (i.year)
-                        bits.push(i.year);
-                    if (i.rating)
-                        bits.push(`★ ${i.rating.toFixed(1)}`);
-                    if (i.genres?.length)
-                        bits.push(i.genres.slice(0, 3).join(", "));
-                    return bits.join("  ·  ");
-                }
-                color: Theme.on_surface_variant
-                font.pixelSize: 15
-            }
+                    // The filter, hidden until / or this
+                    Rectangle {
+                        id: searchButton
 
-            ListView {
-                id: strip
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 34
+                        height: 34
+                        radius: 17
+                        color: root.filtering ? Theme.secondary_container : searchMouse.containsMouse ? Qt.alpha(Theme.on_surface, 0.08) : "transparent"
 
-                // A card: the poster with room above for it to grow, then
-                // the bar and two lines
-                readonly property real cardHeight: root.posterHeight * root.grownScale + 12 + 6 + 62
+                        Icon {
+                            anchors.centerIn: parent
+                            name: "search"
+                            size: 18
+                            color: root.filtering ? Theme.on_secondary_container : Theme.on_surface_variant
+                        }
 
-                y: header.y + header.height + 12
-                width: parent.width
-                height: cardHeight
-                orientation: ListView.Horizontal
-                interactive: false
-                spacing: 22
-                leftMargin: 32
-                rightMargin: 32
-                model: root.items
-                highlightFollowsCurrentItem: true
-                highlightRangeMode: ListView.ApplyRange
-                preferredHighlightBegin: width * 0.25
-                preferredHighlightEnd: width * 0.75
-                highlightMoveDuration: 280
-                highlight: Item {}
+                        MouseArea {
+                            id: searchMouse
 
-                WheelHandler {
-                    onWheel: event => {
-                        if (event.angleDelta.y + event.angleDelta.x > 0)
-                            strip.decrementCurrentIndex();
-                        else
-                            strip.incrementCurrentIndex();
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.filtering ? root.stopFilter() : root.startFilter()
+                        }
                     }
                 }
 
-                delegate: Item {
-                    id: card
+                // The filter: shown while filtering, or while it has text
+                Item {
+                    id: fieldBox
 
-                    required property var modelData
-                    required property int index
-                    readonly property var item: modelData
-                    readonly property bool isCurrent: ListView.isCurrentItem
-                    readonly property bool grown: isCurrent && window.settled
+                    readonly property bool shown: root.filtering || field.text !== ""
 
-                    width: root.posterWidth
-                    height: strip.cardHeight
+                    anchors.top: header.bottom
+                    width: parent.width
+                    height: shown ? 58 : 0
+                    clip: true
 
-                    // Grows upward, clear of the bar and title below
-                    Item {
-                        id: poster
+                    Behavior on height {
+                        NumberAnimation {
+                            duration: Theme.animFast
+                            easing.type: Easing.OutCubic
+                        }
+                    }
 
-                        anchors.bottom: bar.top
-                        anchors.bottomMargin: 12
-                        width: root.posterWidth
-                        height: root.posterHeight
-                        transformOrigin: Item.Bottom
-                        z: 1
-                        scale: card.grown ? root.grownScale : 1
+                    Rectangle {
+                        y: 14
+                        width: parent.width
+                        height: 44
+                        radius: height / 2
+                        color: Theme.surface_container_high
+                        border.width: root.filtering ? 2 : 0
+                        border.color: Theme.primary
 
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 300
-                                easing.type: Easing.OutBack
-                                easing.overshoot: 1.2
-                            }
+                        Icon {
+                            x: 16
+                            name: "search"
+                            size: 18
+                            color: Theme.on_surface_variant
                         }
 
-                        RectangularShadow {
-                            anchors.fill: parent
-                            radius: frame.radius
-                            blur: 24
-                            offset.y: 4
-                            color: Qt.rgba(0, 0, 0, 0.35)
-                            opacity: card.grown ? 1 : 0
+                        TextInput {
+                            id: field
 
-                            Behavior on opacity {
-                                NumberAnimation {
-                                    duration: Theme.animNormal
-                                }
+                            anchors.left: parent.left
+                            anchors.leftMargin: 46
+                            anchors.right: parent.right
+                            anchors.rightMargin: 18
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.on_surface
+                            selectionColor: Theme.primary
+                            selectedTextColor: Theme.on_primary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 15
+                            clip: true
+                            onTextChanged: root.toFirst()
+                            Keys.onPressed: event => event.accepted = root.fieldKey(event)
+                            onActiveFocusChanged: if (activeFocus) {
+                                root.filtering = true;
+                                root.pageId = "";
                             }
-                        }
 
-                        ClippingRectangle {
-                            id: frame
-
-                            anchors.fill: parent
-                            radius: 14
-                            color: Theme.surface_container_high
-
-                            // No poster: the title, in its place
                             Label {
                                 anchors.verticalCenter: undefined
-                                anchors.fill: parent
-                                anchors.margins: 16
-                                visible: !card.item.poster
-                                text: card.item.title
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                wrapMode: Text.Wrap
+                                visible: field.text === ""
+                                text: `Filter ${root.tabs[root.tab].label.toLowerCase()} by title or genre`
                                 color: Theme.on_surface_variant
-                                font.pixelSize: 18
-                                font.weight: Theme.titleWeight
-                            }
-
-                            Image {
-                                anchors.fill: parent
-                                // Only while shown, so closing frees the
-                                // decoded posters
-                                source: window.visible && card.item.poster ? "file://" + card.item.poster : ""
-                                sourceSize.width: 440
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                cache: true
-                                smooth: true
-                                mipmap: true
-                            }
-
-                            // Darkens the top, so the watched chip reads
-                            // on any picture
-                            Rectangle {
-                                visible: watchedChip.visible
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.top: parent.top
-                                height: 80
-                                gradient: Gradient {
-                                    GradientStop {
-                                        position: 0
-                                        color: Qt.rgba(0, 0, 0, 0.7)
-                                    }
-                                    GradientStop {
-                                        position: 1
-                                        color: "transparent"
-                                    }
-                                }
-                            }
-
-                            // The rest sit back
-                            Rectangle {
-                                anchors.fill: parent
-                                color: "black"
-                                opacity: card.isCurrent ? 0 : 0.4
-
-                                Behavior on opacity {
-                                    NumberAnimation {
-                                        duration: Theme.animNormal
-                                    }
-                                }
+                                font: field.font
                             }
                         }
-
-                        // Watched: a chip in the corner, as Reel's cards have
-                        Rectangle {
-                            id: watchedChip
-
-                            visible: root.watchedAll(card.item)
-                            anchors.top: parent.top
-                            anchors.right: parent.right
-                            anchors.margins: 10
-                            width: watchedRow.implicitWidth + 18
-                            height: 26
-                            radius: 13
-                            // Solid, to read on any picture
-                            color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 1)
-                            opacity: card.isCurrent ? 1 : 0.7
-
-                            Row {
-                                id: watchedRow
-
-                                anchors.centerIn: parent
-                                spacing: 4
-
-                                Icon {
-                                    name: "task_alt"
-                                    size: 16
-                                    color: Qt.rgba(Theme.on_primary.r, Theme.on_primary.g, Theme.on_primary.b, 1)
-                                }
-
-                                Label {
-                                    text: "Watched"
-                                    color: Qt.rgba(Theme.on_primary.r, Theme.on_primary.g, Theme.on_primary.b, 1)
-                                    font.pixelSize: 12
-                                    font.weight: Theme.titleWeight
-                                }
-                            }
-                        }
-                    }
-
-                    // How far it's been watched
-                    Rectangle {
-                        id: bar
-
-                        anchors.bottom: lines.top
-                        anchors.bottomMargin: 10
-                        width: parent.width
-                        height: 6
-                        radius: 3
-                        color: Theme.surface_container_highest
-
-                        Rectangle {
-                            readonly property real progress: Math.min(1, root.progressOf(card.item))
-
-                            visible: progress > 0
-                            width: Math.max(height, parent.width * progress)
-                            height: parent.height
-                            radius: 3
-                            color: card.isCurrent ? Theme.primary : Theme.outline
-
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: Theme.animFast
-                                }
-                            }
-                        }
-                    }
-
-                    Column {
-                        id: lines
-
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 52
-                        spacing: 2
-
-                        Label {
-                            anchors.verticalCenter: undefined
-                            width: parent.width
-                            text: card.item.title
-                            elide: Text.ElideRight
-                            color: card.isCurrent ? Theme.on_surface : Theme.on_surface_variant
-                            font.pixelSize: 16
-                            font.weight: Theme.titleWeight
-                        }
-
-                        Label {
-                            anchors.verticalCenter: undefined
-                            width: parent.width
-                            text: root.statusOf(card.item)
-                            elide: Text.ElideRight
-                            color: card.isCurrent ? Theme.primary : Theme.on_surface_variant
-                            font.pixelSize: 14
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: card.isCurrent ? root.play(card.index) : strip.currentIndex = card.index
                     }
                 }
-            }
 
-            Label {
-                anchors.verticalCenter: undefined
-                anchors.centerIn: strip
-                visible: root.items.length === 0
-                text: !root.reel.library ? "Loading the library…" : field.text.trim() !== "" ? `Nothing in ${root.tabs[root.tab].label} matches` : `Nothing in ${root.tabs[root.tab].label} yet`
-                color: Theme.on_surface_variant
-                font.pixelSize: 20
+                // The tab's grid, and a page sliding in over it
+                Item {
+                    id: content
+
+                    anchors.top: fieldBox.bottom
+                    anchors.topMargin: 12
+                    width: parent.width
+                    height: panel.contentHeight
+                    clip: true
+
+                    Item {
+                        id: tabView
+
+                        width: parent.width
+                        height: parent.height
+                        x: root.page ? -32 : 0
+                        opacity: root.page ? 0 : 1
+                        visible: opacity > 0
+
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: Theme.animNormal
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Theme.emphasizedDecel
+                            }
+                        }
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Theme.animFast
+                            }
+                        }
+
+                        // Posters, six across, the pick's fill sliding
+                        // between them. Once moved to (or marked), the pick
+                        // stays on its title as the list changes under it
+                        GridView {
+                            id: grid
+
+                            property string keptId
+                            property var seen: null
+
+                            anchors.fill: parent
+                            model: root.items
+                            cellWidth: panel.cellWidth
+                            cellHeight: panel.cellHeight
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            highlightRangeMode: GridView.ApplyRange
+                            preferredHighlightBegin: 0
+                            preferredHighlightEnd: height
+                            highlightFollowsCurrentItem: false
+
+                            onCurrentIndexChanged: if (model === seen)
+                                keptId = root.items[currentIndex]?.id ?? ""
+                            onModelChanged: {
+                                const was = keptId;
+                                Qt.callLater(() => {
+                                    seen = model;
+                                    const i = was ? root.items.findIndex(x => x.id === was) : -1;
+                                    if (i >= 0)
+                                        currentIndex = i;
+                                });
+                            }
+
+                            highlight: Rectangle {
+                                id: cellFill
+
+                                property bool settled: false
+
+                                Component.onCompleted: Qt.callLater(() => settled = true)
+
+                                x: grid.currentItem?.x ?? 0
+                                y: grid.currentItem?.y ?? 0
+                                width: grid.cellWidth
+                                height: grid.cellHeight
+                                radius: Theme.cardRadius
+                                color: Theme.secondary_container
+
+                                Behavior on x {
+                                    enabled: cellFill.settled
+                                    NumberAnimation {
+                                        duration: 220
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+                                Behavior on y {
+                                    enabled: cellFill.settled
+                                    NumberAnimation {
+                                        duration: 220
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+                            }
+
+                            delegate: PosterCell {
+                                required property var modelData
+                                required property int index
+
+                                width: grid.cellWidth
+                                height: grid.cellHeight
+                                item: modelData
+                                live: window.visible
+                                current: index === grid.currentIndex
+                                status: root.statusOf(modelData)
+                                progress: root.progressOf(modelData)
+                                watched: root.seenAll(modelData)
+                                next: modelData.kind === "series" && modelData.started && root.nextOf(modelData) ? root.reel.code(root.nextOf(modelData)) : ""
+                                onClicked: grid.currentIndex = index
+                                onActivated: root.openPage(modelData)
+                            }
+                        }
+
+                        // Nothing to show, or not yet
+                        Label {
+                            anchors.centerIn: parent
+                            visible: grid.count === 0
+                            text: !root.reel.library ? "Reading the library…" : root.query ? "Nothing matches" : root.tab === 0 ? "Nothing under way: p on a title plays it" : `No ${root.tabs[root.tab].label.toLowerCase()} yet: Movies/TV search downloads them`
+                            color: Theme.on_surface_variant
+                            font.weight: Font.Normal
+                        }
+                    }
+
+                    TitlePage {
+                        id: pageView
+
+                        width: parent.width
+                        height: parent.height
+                        x: root.page ? 0 : 48
+                        opacity: root.page ? 1 : 0
+                        visible: opacity > 0
+                        item: root.page
+                        live: window.visible
+                        onPlay: (index, fromStart) => root.play(root.page, index, fromStart)
+                        onAction: id => root.pageAction(id)
+                        onBack: root.back()
+
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: Theme.animNormal
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Theme.emphasizedDecel
+                            }
+                        }
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Theme.animFast
+                            }
+                        }
+                    }
+                }
+
+                // t's language picker, over it all
+                TrackPicker {
+                    id: picker
+
+                    anchors.margins: -12
+                    onFinished: keys.forceActiveFocus()
+                }
+
+                KeyHelp {
+                    id: help
+
+                    anchors.margins: -12
+                    onFinished: keys.forceActiveFocus()
+                }
             }
         }
     }
 
-    // `qs -p <dir> ipc call reelmenu toggle`, e.g. from a key
+    // `qs -p <dir> ipc call reelmenu toggle`, e.g. from Super+M
     IpcHandler {
         target: "reelmenu"
 
         function toggle(): void {
             root.toggle();
+        }
+
+        function open(): void {
+            if (!root.open)
+                root.show();
         }
     }
 }

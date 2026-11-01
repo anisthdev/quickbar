@@ -34,7 +34,9 @@ Scope {
     property var library: null
     property var progress: ({
             resume: {},
-            played: {}
+            played: {},
+            marks: {},
+            tracks: {}
         })
 
     // Home's pick: the row, and each row's column by name (kept across
@@ -89,45 +91,56 @@ Scope {
                 items: [],
                 rows: []
             };
-        const playedAt = (path, resume) => Math.max(prog.played[path] ?? 0, resume ? resume[1] : 0);
+        const marks = prog.marks ?? {};
+        // A file's state: mpv's (played to the end, mpv drops the resume
+        // file, so played with none left means watched), unless it was
+        // marked by hand since it last played
+        const fileState = (file, duration) => {
+            const resume = prog.resume[file.watch_later];
+            const played = Math.max(prog.played[file.path] ?? 0, resume ? resume[1] : 0);
+            const mark = marks[file.path];
+            if (mark && mark[1] >= played)
+                return {
+                    lastPlayed: mark[1],
+                    watched: mark[0],
+                    position: 0,
+                    progress: 0
+                };
+            const watched = resume ? finished(resume[0], duration) : played > 0;
+            const position = resume && !watched ? resume[0] : 0;
+            return {
+                lastPlayed: played,
+                watched,
+                position,
+                progress: duration ? position / duration : 0
+            };
+        };
         const items = lib.items.map(src => {
             const item = Object.assign({}, src);
-            // Played to the end, mpv drops the resume file: played with
-            // none left means watched
-            if (item.kind === "movie") {
-                const resume = prog.resume[item.watch_later];
-                item.lastPlayed = playedAt(item.path, resume);
-                item.watched = resume ? finished(resume[0], item.duration) : item.lastPlayed > 0;
-                item.position = resume && !item.watched ? resume[0] : 0;
-                item.progress = item.duration ? item.position / item.duration : 0;
-                return item;
-            }
+            item.tracks = prog.tracks?.[item.id] ?? null;
+            if (item.kind === "movie")
+                return Object.assign(item, fileState(item, item.duration));
             item.lastPlayed = 0;
             let latest = -1;
             item.episodes = src.episodes.map((e, i) => {
-                const ep = Object.assign({}, e);
-                const resume = prog.resume[ep.watch_later];
-                ep.lastPlayed = playedAt(ep.path, resume);
-                ep.watched = resume ? finished(resume[0], ep.duration) : ep.lastPlayed > 0;
-                ep.position = resume && !ep.watched ? resume[0] : 0;
-                ep.progress = ep.duration ? ep.position / ep.duration : 0;
+                const ep = Object.assign({}, e, fileState(e, e.duration));
                 if (ep.lastPlayed > item.lastPlayed) {
                     item.lastPlayed = ep.lastPlayed;
                     latest = i;
                 }
                 return ep;
             });
-            // Next: the latest played, or the one after it if that's done
-            item.next = latest < 0 ? -1 : item.episodes[latest].position > 0 ? latest : latest + 1;
-            if (item.next >= item.episodes.length)
-                item.next = -1;
+            // Next: from the one last played (or marked) on, the first not
+            // seen to the end, so one stopped halfway carries on
+            item.next = latest < 0 ? -1 : item.episodes.findIndex((e, i) => i >= latest && !e.watched);
+            item.started = item.episodes.some(e => e.watched || e.position > 0);
             const next = item.episodes[item.next];
             item.progress = next ? next.progress : 0;
             return item;
         });
         const byRecent = (a, b) => b.lastPlayed - a.lastPlayed || a.title.localeCompare(b.title);
         const rows = [];
-        const going = items.filter(i => i.lastPlayed > 0 && (i.kind === "movie" ? i.position > 0 : i.next >= 0)).sort(byRecent);
+        const going = items.filter(i => i.lastPlayed > 0 && (i.kind === "movie" ? i.position > 0 : i.next >= 0 && i.started)).sort(byRecent);
         if (going.length > 0)
             rows.push({
                 name: "Continue watching",
@@ -226,11 +239,47 @@ Scope {
     }
 
     // A movie resumes by itself (mpv's watch_later); a series queues every
-    // episode, from the picked one on, so next and previous move between them
-    function play(item, index) {
-        const paths = item.kind === "movie" ? [item.path] : item.episodes.map(e => e.path);
+    // episode, from the picked one on, so next and previous move between
+    // them. fromStart plays the picked file from its beginning. The title's
+    // languages (picked in the menu) beat what mpv saved for the file.
+    function play(item, index, fromStart) {
+        const files = item.kind === "movie" ? [item] : item.episodes;
+        const at = item.kind === "movie" ? 0 : index;
+        const args = ["uwsm", "app", "--", "mpv", "--player-operation-mode=pseudo-gui", `--playlist-start=${at}`];
+        const tracks = item.tracks;
+        if (tracks?.audio)
+            args.push("--aid=auto", `--alang=${tracks.audio}`);
+        if (tracks?.subs === "no")
+            args.push("--sid=no");
+        else if (tracks?.subs)
+            args.push("--sid=auto", `--slang=${tracks.subs}`);
+        // Paths are absolute, so none passes for an option; the picked one
+        // starts over in a group of its own (per-file options)
+        files.forEach((f, i) => {
+            if (fromStart && i === at)
+                args.push("--{", "--start=0", f.path, "--}");
+            else
+                args.push(f.path);
+        });
         player.createObject(root, {
-            command: ["uwsm", "app", "--", "mpv", "--player-operation-mode=pseudo-gui", `--playlist-start=${item.kind === "movie" ? 0 : index}`, "--"].concat(paths)
+            command: args
+        });
+    }
+
+    // Seen or not, by hand: files from the library's items or episodes
+    function mark(files, watched) {
+        if (files.length === 0)
+            return;
+        writer.createObject(root, {
+            command: [Quickshell.shellDir + "/scripts/watch-progress", "mark", watched ? "watched" : "unwatched"].concat(files.map(f => f.path))
+        });
+    }
+
+    // The languages to play a title in: a code, "" for mpv's choice, or
+    // subs "no"
+    function setTracks(item, audio, subs) {
+        writer.createObject(root, {
+            command: [Quickshell.shellDir + "/scripts/watch-progress", "tracks", item.id, audio, subs]
         });
     }
 
@@ -282,6 +331,19 @@ Scope {
         id: scan
 
         command: [root.reel + "/scan.py"]
+    }
+
+    // One per change to the marks or languages; the progress read again after
+    Component {
+        id: writer
+
+        Process {
+            running: true
+            onExited: {
+                root.refresh();
+                destroy();
+            }
+        }
     }
 
     // One per playback; when mpv closes, the progress is read again
