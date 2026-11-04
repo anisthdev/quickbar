@@ -26,7 +26,7 @@ Item {
     readonly property color tint: Qt.rgba(color.r, color.g, color.b, 1)
     readonly property color fillColor: charging ? "#18cc47" : critical ? "#ff0e01" : tint
     readonly property color bodyColor: full ? fillColor : Qt.rgba(tint.r, tint.g, tint.b, 0.55)
-    readonly property color glyphColor: Qt.rgba(0, 0, 0, 0.75)
+    readonly property color glyphColor: Theme.light ? Qt.rgba(1, 1, 1, 0.9) : Qt.rgba(0, 0, 0, 0.75)
 
     // Digits laid out left to right, 0.8 units apart, centred in the body
     readonly property var digits: {

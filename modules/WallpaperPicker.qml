@@ -71,7 +71,7 @@ Scope {
         const wall = walls[index];
         if (!wall)
             return;
-        Quickshell.execDetached(["matugen", "--type", "scheme-expressive", "image", wall.path, "--source-color-index", "0"]);
+        Quickshell.execDetached(["matugen", "--mode", Theme.light ? "light" : "dark", "--type", "scheme-expressive", "image", wall.path, "--source-color-index", "0"]);
         hide();
     }
 

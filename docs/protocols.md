@@ -83,4 +83,4 @@ optional. `/usr/lib/quickbar/claude-usage` writes `claude.json`.
 | Music | mpd | `mpc` |
 | Workspaces, windows, binds | Hyprland | Quickshell's Hyprland module and `hyprctl -j` |
 | The wallpaper | awww, matugen | `awww query`; the wallpaper picker runs `matugen image` |
-| Commands of yours | you | `toggle-handoff`, `toggle-nightlight`, `battery-limit` on PATH (the control panel's switches); `phoneMirror` in config.json |
+| Commands of yours | you | `toggle-handoff`, `toggle-nightlight`, `battery-limit`, `theme-mode` on PATH (the control panel's switches); `phoneMirror` in config.json |

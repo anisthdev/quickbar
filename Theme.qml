@@ -68,6 +68,10 @@ Singleton {
     property color tertiary_container: Qt.rgba(7 / 255, 81 / 255, 61 / 255, 0.8)
     property color on_tertiary_container: Qt.rgba(175 / 255, 240 / 255, 213 / 255, 0.8)
 
+    // Whether the palette is a light one: matugen's mode, which the file
+    // doesn't state but its background shows
+    readonly property bool light: 0.2126 * background.r + 0.7152 * background.g + 0.0722 * background.b > 0.5
+
     function parse(css) {
         const re = /@define-color\s+(\w+)\s+rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)/g;
         let m;

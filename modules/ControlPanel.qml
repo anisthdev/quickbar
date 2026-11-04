@@ -144,6 +144,12 @@ Scope {
             trailing: onOff(nightlightOn)
         },
         {
+            key: "lightmode",
+            label: "Light mode",
+            icon: "preferences-desktop-theme",
+            trailing: onOff(Theme.light)
+        },
+        {
             key: "charge",
             label: "Charge limit",
             icon: "battery",
@@ -546,13 +552,14 @@ Scope {
                 // Off the control panel first, so keys go to the window
                 keyboard.toggle();
                 menu.hide();
-            } else if (["handoff", "nightlight", "charge"].includes(key)) {
+            } else if (["handoff", "nightlight", "lightmode", "charge"].includes(key)) {
                 // Commands of your own, on PATH: each switches its thing
-                switcher.command = [({
-                            handoff: "toggle-handoff",
-                            nightlight: "toggle-nightlight",
-                            charge: "battery-limit"
-                        })[key]];
+                switcher.command = ({
+                        handoff: ["toggle-handoff"],
+                        nightlight: ["toggle-nightlight"],
+                        lightmode: ["theme-mode", "toggle"],
+                        charge: ["battery-limit"]
+                    })[key];
                 switcher.running = true;
             } else {
                 // The next menu takes the bottom centre once this one has gone
