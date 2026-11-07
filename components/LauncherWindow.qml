@@ -524,6 +524,23 @@ Scope {
                         return index === 0 ? headingHeight : headingHeight + sectionGap;
                     }
 
+                    // A row growing under the pick slips past the highlight
+                    // range, which only looks as the pick moves; it's followed
+                    // here, down to the last frame of its growing
+                    function keepBigInView() {
+                        const slot = currentItem;
+                        if (!slot?.big)
+                            return;
+                        // The rows' places, caught up with their heights
+                        forceLayout();
+                        const top = slot.y + slot.gap;
+                        const bottom = top + slot.row.height;
+                        if (bottom > contentY + height)
+                            contentY = bottom - height;
+                        else if (top < contentY)
+                            contentY = top;
+                    }
+
                     // Over the rows shown before it scrolls
                     readonly property real gaps: {
                         let sum = 0;
@@ -557,6 +574,7 @@ Scope {
                             Qt.callLater(() => list.positionViewAtIndex(index, ListView.Contain));
                         }
                         lastIndex = currentIndex;
+                        Qt.callLater(list.keepBigInView);
                     }
                     // The pick's fill slides from row to row: it sits above
                     // the rows' backgrounds (drawn on a layer of their own,
@@ -609,6 +627,10 @@ Scope {
 
                         width: list.width
                         height: gap + item.height
+                        onYChanged: if (ListView.isCurrentItem)
+                            Qt.callLater(list.keepBigInView)
+                        onHeightChanged: if (ListView.isCurrentItem)
+                            Qt.callLater(list.keepBigInView)
 
                         Label {
                             anchors.verticalCenter: undefined
