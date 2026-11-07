@@ -5,13 +5,16 @@ import QtQuick
 import ".."
 import "../components"
 
-// Search Jackett for movies, anime, Hindi films or ebooks (whichever the
-// caller opened it for, named in the title), then download the pick with
-// Transmission or stream it with peerflix. Opened for "music", it searches
-// YouTube Music through tunes (on PATH) instead: albums and songs,
-// downloaded by quickbar's runner and filed into mpd's library. Opened for
-// "play", it plays a pasted URL or magnet link, starting from a link on the
-// clipboard. The Jackett side is scripts/media-search; this is the window.
+// Search Jackett for movies, anime, Hindi films or ebooks, then download the
+// pick with Transmission or stream it with peerflix. In Music mode it
+// searches YouTube Music through tunes (on PATH) instead: albums and songs,
+// downloaded by quickbar's runner and filed into mpd's library. The modes
+// are chips under the title: Tab/Shift+Tab (anywhere) or 1-5 (in the
+// results) switch, and a query already searched is searched again in the
+// new mode. It opens on the mode the caller names, else the last one used.
+// Opened for "play", it plays a pasted URL or magnet link instead (no
+// chips), starting from a link on the clipboard. The Jackett side is
+// scripts/media-search; this is the window.
 //
 // It opens at the bottom centre at the rofi menu's size, widening and
 // growing only once there are results.
@@ -67,6 +70,9 @@ Scope {
     ]
     property int kind: 0
     readonly property var current: kinds[kind]
+    // The chips: every kind but play
+    readonly property var modes: kinds.filter(k => !k.play)
+    readonly property int mode: modes.indexOf(current)
 
     property bool open: false
     // Typing the query, rather than moving through the results
@@ -91,7 +97,10 @@ Scope {
     readonly property int markedCount: Object.keys(marked).length
 
     function show(id) {
-        const i = kinds.findIndex(k => k.id === id);
+        let i = kinds.findIndex(k => k.id === id);
+        // No mode named: the last search mode, not play
+        if (i < 0 && current.play)
+            i = 0;
         if (i >= 0 && i !== kind) {
             kind = i;
             reset();
@@ -135,6 +144,35 @@ Scope {
 
     function hide() {
         open = false;
+    }
+
+    // Another mode (a chip, by its index in modes; wrapping), searching the
+    // query again there if it was searched
+    function switchMode(index) {
+        if (current.play)
+            return;
+        const next = modes[(index + modes.length) % modes.length];
+        if (next === current)
+            return;
+        const again = searched !== "" && field.text.trim() !== "";
+        reset();
+        kind = kinds.indexOf(next);
+        if (again)
+            search();
+        type(true, false);
+    }
+
+    // Tab and Shift+Tab, while typing or not
+    function modeKey(event) {
+        if (event.key === Qt.Key_Backtab || event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)) {
+            switchMode(mode - 1);
+            return true;
+        }
+        if (event.key === Qt.Key_Tab) {
+            switchMode(mode + 1);
+            return true;
+        }
+        return false;
     }
 
     function reset() {
@@ -439,8 +477,9 @@ Scope {
             id: panel
 
             readonly property bool grown: root.phase === "done" && root.results.length > 0
-            // The rofi movie search's size until there are results to show
-            property real fullHeight: grown ? content.y + content.implicitHeight + 20 : 157
+            // The rofi movie search's size (and the chips) until there are
+            // results to show
+            property real fullHeight: grown ? content.y + content.implicitHeight + 20 : 157 + (chips.visible ? chips.height + content.spacing : 0)
 
             // Bottom centre, where the rofi menus open, growing upwards
             anchors.horizontalCenter: parent.horizontalCenter
@@ -485,7 +524,12 @@ Scope {
                 id: keys
 
                 Keys.onPressed: event => {
-                    if (listKeys.handle(event)) {
+                    if (listKeys.handle(event) || root.modeKey(event)) {
+                        event.accepted = true;
+                        return;
+                    }
+                    if (event.key >= Qt.Key_1 && event.key < Qt.Key_1 + root.modes.length && !root.album) {
+                        root.switchMode(event.key - Qt.Key_1);
                         event.accepted = true;
                         return;
                     }
@@ -585,6 +629,57 @@ Scope {
 
                 }
 
+                // The modes, as MusicMenu's tabs
+                Row {
+                    id: chips
+
+                    visible: !root.current.play
+                    height: 32
+                    spacing: 4
+
+                    Repeater {
+                        model: root.modes
+
+                        Rectangle {
+                            id: chip
+
+                            required property var modelData
+                            required property int index
+                            readonly property bool on: index === root.mode
+
+                            width: chipLabel.implicitWidth + 28
+                            height: 32
+                            radius: height / 2
+                            color: on ? Theme.secondary_container : chipMouse.containsMouse ? Qt.alpha(Theme.on_surface, 0.08) : "transparent"
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: Theme.animFast
+                                }
+                            }
+
+                            Label {
+                                id: chipLabel
+
+                                anchors.centerIn: parent
+                                text: chip.modelData.label
+                                color: chip.on ? Theme.on_secondary_container : Theme.on_surface_variant
+                                font.pixelSize: 13
+                                font.weight: chip.on ? Font.DemiBold : Font.Medium
+                            }
+
+                            MouseArea {
+                                id: chipMouse
+
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.switchMode(chip.index)
+                            }
+                        }
+                    }
+                }
+
                 // Search field, outlined while typing
                 Rectangle {
                     width: parent.width
@@ -636,6 +731,10 @@ Scope {
                         // Typing; these search, play or leave
                         Keys.onPressed: event => {
                             const ctrl = event.modifiers & Qt.ControlModifier;
+                            if (root.modeKey(event)) {
+                                event.accepted = true;
+                                return;
+                            }
                             switch (event.key) {
                             case Qt.Key_Escape:
                                 if (root.results.length > 0 && !root.current.play)
@@ -958,7 +1057,8 @@ Scope {
         }
     }
 
-    // `qs -c quickbar ipc call search open movies` (or anime, hindi, books, music, play)
+    // `qs -c quickbar ipc call search open movies` (or anime, hindi, books,
+    // music, play; "" for the last mode)
     IpcHandler {
         target: "search"
 
