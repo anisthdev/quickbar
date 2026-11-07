@@ -689,7 +689,7 @@ Scope {
                         y: 14
                         width: parent.width
                         height: 44
-                        radius: height / 2
+                        radius: Theme.radius
                         color: Theme.surface_container_high
                         border.width: root.filtering ? 2 : 0
                         border.color: Theme.primary

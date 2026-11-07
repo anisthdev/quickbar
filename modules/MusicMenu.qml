@@ -1008,7 +1008,7 @@ Scope {
                     anchors.topMargin: 14
                     width: parent.width
                     height: 44
-                    radius: height / 2
+                    radius: Theme.radius
                     // The lyrics have its room
                     visible: !root.lyricsOpen
                     color: Theme.surface_container_high
