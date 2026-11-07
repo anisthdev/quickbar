@@ -22,7 +22,7 @@ Item {
     readonly property var actions: page?.actions ?? [
         {
             id: "play",
-            label: "Play  P",
+            label: "Play  p",
             icon: "media_play_arrow",
             primary: true
         },
@@ -254,7 +254,7 @@ Item {
         anchors.verticalCenter: undefined
         y: songList.y + 40
         visible: root.page !== null && root.songs.length === 0
-        text: root.kind === "queue" ? "Nothing queued: Enter on a song plays it, a queues it" : "Nothing in it yet: p adds songs to it"
+        text: root.kind === "queue" ? "Nothing queued: Enter on a song plays it, a queues it" : "Nothing in it yet: P adds songs to it"
         color: Theme.on_surface_variant
         font.weight: Font.Normal
     }

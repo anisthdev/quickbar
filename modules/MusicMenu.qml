@@ -19,14 +19,15 @@ import "music"
 // Keys, vim style, the list keeping them: j/k (h/l too, in the album grid)
 // move, gg/G go to the ends, Ctrl+d/u by half a page. Enter plays a song
 // and the rest of its list after it, or opens an album, artist or playlist
-// (o too). a adds the pick to the queue's end, N plays it next, p adds it
-// to a playlist (a picker: type to find one, or a new name), s changes the
+// (o too), p plays the pick, all of an album, an artist or a playlist. a
+// adds it to the queue's end, N plays it next, P adds it to a playlist (a
+// picker: type to find one, or a new name), s changes the
 // order (songs: added, title, artist; artists: most songs, name), D twice
 // deletes a playlist. Q opens the queue (as a click on the player does), S
 // saves it as a playlist. Tab/Shift+Tab or 1-4 switch tabs, Space plays or
 // pauses, > and < skip, / or i search, Esc clears the search and then
 // closes, as q and Ctrl+w do. On a page: Enter (or l) plays from the song
-// (in the queue, jumps to it), P plays it all, R shuffled, Esc, h or
+// (in the queue, jumps to it), p plays it all, R shuffled, Esc, h or
 // Backspace go back; in a playlist or the queue J/K move the song down and
 // up and d takes it out. In the lyrics, j/k move through them and Enter (or
 // l) goes to that line. ? lists the keys. In the field typing searches;
@@ -44,8 +45,8 @@ Scope {
     readonly property int columns: 5
     // [keys, what they do], for ? (KeyHelp)
     readonly property var playerBindings: [["Space  >  <", "Play or pause, next, previous"], ["Q", "The queue (as a click on the player)"], ["L", "The song's lyrics"], ["S", "Save the queue as a playlist"]]
-    readonly property var tabBindings: [["j k  ↓ ↑", "Move (h l too, across the albums)"], ["gg G  Ctrl+d/u", "The ends, half a page"], ["Enter  o  l", "Play the song and the rest after it, or open it"], ["a  N", "Add to the queue's end, play next"], ["p", "Add to a playlist"], ["s", "Change the order"], ["D D", "Delete the playlist"], ["1-4  Tab", "Switch tabs"], ["/  i", "Search (Esc back to the list)"], ...playerBindings, ["Esc  q", "Clear the search, then close"]]
-    readonly property var pageBindings: [["j k  gg G", "Move"], ["Enter  l", "Play from the song (the queue: jump to it)"], ["P  R", "Play it all, shuffled"], ["a  N  p", "Queue the song, play it next, add it to a playlist"], ["J K  d", "Move the song down, up; take it out (a playlist, the queue)"], ["D D", "Delete the playlist"], ...playerBindings, ["Esc  h  Backspace", "Back"], ["q", "Close"]]
+    readonly property var tabBindings: [["j k  ↓ ↑", "Move (h l too, across the albums)"], ["gg G  Ctrl+d/u", "The ends, half a page"], ["Enter  o  l", "Play the song and the rest after it, or open it"], ["p", "Play it, all of an album, artist or playlist"], ["a  N", "Add to the queue's end, play next"], ["P", "Add to a playlist"], ["s", "Change the order"], ["D D", "Delete the playlist"], ["1-4  Tab", "Switch tabs"], ["/  i", "Search (Esc back to the list)"], ...playerBindings, ["Esc  q", "Clear the search, then close"]]
+    readonly property var pageBindings: [["j k  gg G", "Move"], ["Enter  l", "Play from the song (the queue: jump to it)"], ["p  R", "Play it all, shuffled"], ["a  N  P", "Queue the song, play it next, add it to a playlist"], ["J K  d", "Move the song down, up; take it out (a playlist, the queue)"], ["D D", "Delete the playlist"], ...playerBindings, ["Esc  h  Backspace", "Back"], ["q", "Close"]]
     readonly property var lyricsBindings: [["j k  gg G", "Move through them; they follow again after a moment"], ["Enter  l", "Go to the line (as a click on it)"], ...playerBindings, ["Esc  h  Backspace", "Back"], ["q", "Close"]]
 
     property bool open: false
@@ -261,10 +262,20 @@ Scope {
         return `${n} ${n === 1 ? one : many}`;
     }
 
+    function albumSongs(album) {
+        return album.songs.slice().sort((a, b) => a.track - b.track);
+    }
+
+    // Their albums newest first, each in track order
+    function artistSongs(artist) {
+        const order = albums.map(a => a.dir);
+        return songs.filter(s => artist.files.includes(s.file)).sort((a, b) => order.indexOf(a.dir) - order.indexOf(b.dir) || a.track - b.track);
+    }
+
     function openAlbum(album) {
         if (!album)
             return;
-        const songs = album.songs.slice().sort((a, b) => a.track - b.track);
+        const songs = albumSongs(album);
         pages = pages.concat([{
                 kind: "album",
                 title: album.title,
@@ -279,10 +290,7 @@ Scope {
     function openArtist(artist) {
         if (!artist)
             return;
-        const theirs = songs.filter(s => artist.files.includes(s.file));
-        // Their albums newest first, each in track order
-        const order = albums.map(a => a.dir);
-        theirs.sort((a, b) => order.indexOf(a.dir) - order.indexOf(b.dir) || a.track - b.track);
+        const theirs = artistSongs(artist);
         pages = pages.concat([{
                 kind: "artist",
                 title: artist.name,
@@ -538,6 +546,16 @@ Scope {
             openPlaylist(current);
     }
 
+    // p: the page, or the tab's pick, all of it from the start
+    function playCurrent() {
+        if (page)
+            pageAction("play");
+        else if (tab === 0)
+            playList(shownSongs, activeList.currentIndex);
+        else if (current)
+            playList(tab === 1 ? albumSongs(current) : tab === 2 ? artistSongs(current) : current.tracks.filter(t => !t.missing), 0);
+    }
+
     function enqueueCurrent() {
         const files = filesOf(current);
         if (files.length === 0)
@@ -677,15 +695,14 @@ Scope {
         case "N":
             playNextCurrent();
             return true;
-        case "P":
-            if (page)
-                pageAction("play");
+        case "p":
+            playCurrent();
             return true;
         case "R":
             if (page)
                 pageAction("shuffle");
             return true;
-        case "p":
+        case "P":
             addToPlaylist();
             return true;
         case "d":
@@ -1320,7 +1337,7 @@ Scope {
                         Label {
                             anchors.centerIn: parent
                             visible: (root.activeList?.count ?? 0) === 0
-                            text: !root.library ? "Reading the library…" : root.query ? "Nothing matches" : root.tab === 3 ? "No playlists yet: p adds songs to a new one" : "No music yet: Music search downloads it"
+                            text: !root.library ? "Reading the library…" : root.query ? "Nothing matches" : root.tab === 3 ? "No playlists yet: P adds songs to a new one" : "No music yet: Music search downloads it"
                             color: Theme.on_surface_variant
                             font.weight: Font.Normal
                         }
