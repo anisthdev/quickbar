@@ -8,7 +8,8 @@ import QtQuick
 // playing chip, the music menu): what's playing, where it is, the options,
 // the queue and the song's art, and the commands. State comes from mpc:
 // `mpc idleloop` says when something changed and a short query reads it;
-// elapsed time ticks locally between.
+// elapsed time ticks locally between. exactElapsed() is that to the moment,
+// for lyrics: mpc only says whole seconds, so the query asks mpd itself.
 Singleton {
     id: root
 
@@ -20,6 +21,9 @@ Singleton {
     property string album
     property string file
     property real elapsed: 0
+    // Where the song was, in seconds, at a moment (in seconds since the epoch)
+    property real syncElapsed: 0
+    property real syncAt: 0
     property real duration: 0
     property bool random: false
     property bool repeat: false
@@ -35,6 +39,11 @@ Singleton {
 
     function mpc(...args) {
         Quickshell.execDetached(["mpc", "-q", ...args]);
+    }
+
+    function exactElapsed() {
+        const since = playing ? Math.max(0, Date.now() / 1000 - syncAt) : 0;
+        return Math.min(duration, syncElapsed + since);
     }
 
     // "1:23" or "1:02:03" -> seconds
@@ -137,17 +146,19 @@ Singleton {
         }
     }
 
-    // The status and the song on their own lines (even when empty), then
-    // the queue, a song a line
+    // mpd's exact elapsed time and when it was asked, the status and the song
+    // on their own lines (even when empty), then the queue, a song a line. A
+    // host mpc can reach but this can't (a socket) leaves elapsed empty.
     Process {
         id: query
 
         running: true
-        command: ["sh", "-c", "printf '%s\\n' \"$(mpc status '%state%@@%currenttime%@@%totaltime%@@%random%@@%repeat%@@%single%@@%songpos%')\" \"$(mpc current -f '%title%@@%artist%@@%album%@@%file%')\"; mpc playlist -f '%file%@@%title%@@%artist%@@%album%@@%time%'"]
+        command: ["bash", "-c", "printf '%s\\n' \"$({ exec 3<>/dev/tcp/${MPD_HOST:-127.0.0.1}/${MPD_PORT:-6600}; } 2>/dev/null && printf 'status\\nclose\\n' >&3 && sed -n 's/^elapsed: //p' <&3)@@${EPOCHREALTIME/,/.}\" \"$(mpc status '%state%@@%currenttime%@@%totaltime%@@%random%@@%repeat%@@%single%@@%songpos%')\" \"$(mpc current -f '%title%@@%artist%@@%album%@@%file%')\"; mpc playlist -f '%file%@@%title%@@%artist%@@%album%@@%time%'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.split("\n");
-                const s = (lines[0] ?? "").split("@@");
+                const [exact, askedAt] = (lines[0] ?? "").split("@@");
+                const s = (lines[1] ?? "").split("@@");
                 root.state = s[0] || "stopped";
                 root.elapsed = root.seconds(s[1] ?? "0");
                 root.duration = root.seconds(s[2] ?? "0");
@@ -155,8 +166,10 @@ Singleton {
                 root.repeat = s[4] === "on";
                 root.single = s[5] === "on";
                 root.position = root.state === "stopped" ? -1 : (parseInt(s[6]) || 0) - 1;
-                root.parseCurrent((lines[1] ?? "").split("@@"));
-                root.parseQueue(lines.slice(2));
+                root.parseCurrent((lines[2] ?? "").split("@@"));
+                root.parseQueue(lines.slice(3));
+                root.syncElapsed = exact !== "" ? parseFloat(exact) : root.elapsed;
+                root.syncAt = parseFloat(askedAt) || Date.now() / 1000;
             }
         }
     }
@@ -175,6 +188,6 @@ Singleton {
         interval: 1000
         running: root.playing
         repeat: true
-        onTriggered: root.elapsed = Math.min(root.duration, root.elapsed + 1)
+        onTriggered: root.elapsed = Math.floor(root.exactElapsed())
     }
 }

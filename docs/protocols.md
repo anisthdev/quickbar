@@ -74,6 +74,7 @@ optional. `/usr/lib/quickbar/claude-usage` writes `claude.json`.
 | Its settings | you | `$XDG_CONFIG_HOME/quickbar/config.json` (`Config.qml` documents the keys), `calendars`, `jackett` |
 | The weather | weather | `weather --forecast` on PATH, JSON |
 | Music search and downloads | tunes | `tunes search\|tracks --json`, `tunes get` on PATH |
+| Lyrics | tunes | `Title.lrc` or `Title.txt` beside the song in mpd's `music_directory` |
 | Torrents | transmission-daemon | its RPC at `127.0.0.1:9091`; a row's click runs `seedling show ID` |
 | Searching torrents | Jackett | its Torznab API, key and URL in `$XDG_CONFIG_HOME/quickbar/jackett` |
 | The video library | reel | `reel-scan` on PATH; `$XDG_CACHE_HOME/reel/library.json` (reel's README has the format) |

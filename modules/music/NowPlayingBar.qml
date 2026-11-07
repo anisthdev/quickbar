@@ -3,15 +3,18 @@ import "../.."
 import "../../components"
 
 // The music menu's foot: what mpd is playing (its cover, title and artist),
-// previous, play/pause and next, shuffle and repeat, and how far along it
-// is, a wavy line while it plays that seeks on a click. A click on the song
-// asks for the queue (`opened`). Hidden while mpd is stopped.
+// previous, play/pause and next, shuffle and repeat, its lyrics, and how far
+// along it is, a wavy line while it plays that seeks on a click. A click on
+// the song asks for the queue (`opened`). Hidden while mpd is stopped.
 Rectangle {
     id: root
 
     readonly property var player: MpdPlayer
+    // The lyrics page is open
+    property bool lyricsOpen: false
 
     signal opened
+    signal lyrics
 
     function clock(seconds) {
         return `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, "0")}`;
@@ -81,6 +84,14 @@ Rectangle {
         anchors.rightMargin: 12
         y: (song.height - height) / 2
         spacing: 4
+
+        IconButton {
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "lyrics"
+            iconSize: 16
+            color: root.lyricsOpen ? Theme.primary : Theme.on_surface_variant
+            onClicked: root.lyrics()
+        }
 
         IconButton {
             anchors.verticalCenter: parent.verticalCenter

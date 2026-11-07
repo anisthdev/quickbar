@@ -11,9 +11,10 @@ import "music"
 // and Playlists, a field searching the one open, and what mpd is playing at
 // its foot (NowPlayingBar). An album, an artist, a playlist or the queue
 // opens as a page over the tab (DetailPage); pages stack, so an album
-// opened from its artist goes back to them. Playlists are mpd's own. The library is mpd's, read by scripts/music-library (an
-// album a folder, as tunes files them); playing goes through MpdPlayer. It
-// reopens on the tab it was left on.
+// opened from its artist goes back to them, and L opens the playing song's
+// lyrics the same way (LyricsPage). Playlists are mpd's own. The library is
+// mpd's, read by scripts/music-library (an album a folder, as tunes files
+// them); playing goes through MpdPlayer. It reopens on the tab it was left on.
 //
 // Keys, vim style, the list keeping them: j/k (h/l too, in the album grid)
 // move, gg/G go to the ends, Ctrl+d/u by half a page. Enter plays a song
@@ -27,7 +28,8 @@ import "music"
 // closes, as q and Ctrl+w do. On a page: Enter (or l) plays from the song
 // (in the queue, jumps to it), P plays it all, R shuffled, Esc, h or
 // Backspace go back; in a playlist or the queue J/K move the song down and
-// up and d takes it out. ? lists the keys. In the field typing searches;
+// up and d takes it out. In the lyrics, j/k move through them and Enter (or
+// l) goes to that line. ? lists the keys. In the field typing searches;
 // Up/Down (Ctrl+j/k) move, Enter acts on the pick, Esc goes back to the
 // list keeping the search.
 Scope {
@@ -41,9 +43,10 @@ Scope {
     readonly property int maxRows: 8
     readonly property int columns: 5
     // [keys, what they do], for ? (KeyHelp)
-    readonly property var playerBindings: [["Space  >  <", "Play or pause, next, previous"], ["Q", "The queue (as a click on the player)"], ["S", "Save the queue as a playlist"]]
+    readonly property var playerBindings: [["Space  >  <", "Play or pause, next, previous"], ["Q", "The queue (as a click on the player)"], ["L", "The song's lyrics"], ["S", "Save the queue as a playlist"]]
     readonly property var tabBindings: [["j k  ↓ ↑", "Move (h l too, across the albums)"], ["gg G  Ctrl+d/u", "The ends, half a page"], ["Enter  o  l", "Play the song and the rest after it, or open it"], ["a  N", "Add to the queue's end, play next"], ["p", "Add to a playlist"], ["s", "Change the order"], ["D D", "Delete the playlist"], ["1-4  Tab", "Switch tabs"], ["/  i", "Search (Esc back to the list)"], ...playerBindings, ["Esc  q", "Clear the search, then close"]]
     readonly property var pageBindings: [["j k  gg G", "Move"], ["Enter  l", "Play from the song (the queue: jump to it)"], ["P  R", "Play it all, shuffled"], ["a  N  p", "Queue the song, play it next, add it to a playlist"], ["J K  d", "Move the song down, up; take it out (a playlist, the queue)"], ["D D", "Delete the playlist"], ...playerBindings, ["Esc  h  Backspace", "Back"], ["q", "Close"]]
+    readonly property var lyricsBindings: [["j k  gg G", "Move through them; they follow again after a moment"], ["Enter  l", "Go to the line (as a click on it)"], ...playerBindings, ["Esc  h  Backspace", "Back"], ["q", "Close"]]
 
     property bool open: false
     // In the search field rather than on the list
@@ -57,6 +60,7 @@ Scope {
     // The pages open over the tab, the last on top
     property var pages: []
     readonly property var page: pages.length > 0 ? pages[pages.length - 1] : null
+    readonly property bool lyricsOpen: page?.kind === "lyrics"
     // What the right of the header says for a moment, e.g. "Queued"
     property string flash
     // The playlist a first D asked to delete
@@ -162,7 +166,7 @@ Scope {
         return page?.info ?? "";
     }
     // The list the keys move: a page's songs, else the tab's
-    readonly property var activeList: page ? pageView.list : [songList, albumGrid, artistList, playlistList][tab]
+    readonly property var activeList: lyricsOpen ? lyricsPage.list : page ? pageView.list : [songList, albumGrid, artistList, playlistList][tab]
     readonly property var current: {
         const i = activeList?.currentIndex ?? -1;
         if (i < 0)
@@ -335,6 +339,17 @@ Scope {
         });
     }
 
+    // The playing song's lyrics, or back from them
+    function toggleLyrics() {
+        if (lyricsOpen)
+            back();
+        else
+            pages = pages.concat([{
+                    kind: "lyrics",
+                    songs: []
+                }]);
+    }
+
     function back() {
         pendingDelete = "";
         pages = pages.slice(0, -1);
@@ -353,6 +368,8 @@ Scope {
     }
 
     function pageAction(id) {
+        if (lyricsOpen)
+            return;
         if (id === "play")
             playPage(0);
         else if (id === "shuffle")
@@ -507,7 +524,9 @@ Scope {
     // Enter: plays a song, opens an album or an artist
     function activate() {
         const i = activeList?.currentIndex ?? -1;
-        if (page)
+        if (lyricsOpen)
+            lyricsPage.seekPick();
+        else if (page)
             playPage(i);
         else if (tab === 0)
             playList(shownSongs, i);
@@ -599,7 +618,7 @@ Scope {
         const ctrl = event.modifiers & Qt.ControlModifier;
         const t = event.text;
         if (t === "?" || event.key === Qt.Key_F1) {
-            help.show(page ? pageBindings : tabBindings);
+            help.show(lyricsOpen ? lyricsBindings : page ? pageBindings : tabBindings);
             return true;
         }
         if (ctrl && event.key === Qt.Key_W) {
@@ -678,6 +697,9 @@ Scope {
             return true;
         case "Q":
             openQueue();
+            return true;
+        case "L":
+            toggleLyrics();
             return true;
         case "S":
             saveQueue();
@@ -970,6 +992,8 @@ Scope {
                     width: parent.width
                     height: 44
                     radius: height / 2
+                    // The lyrics have its room
+                    visible: !root.lyricsOpen
                     color: Theme.surface_container_high
                     border.width: root.typing ? 2 : 0
                     border.color: Theme.primary
@@ -1038,10 +1062,10 @@ Scope {
                 Item {
                     id: content
 
-                    anchors.top: fieldBox.bottom
+                    anchors.top: root.lyricsOpen ? header.bottom : fieldBox.bottom
                     anchors.topMargin: 12
                     width: parent.width
-                    height: panel.contentHeight
+                    height: panel.contentHeight + (root.lyricsOpen ? fieldBox.height + 14 : 0)
                     clip: true
 
                     Item {
@@ -1307,8 +1331,8 @@ Scope {
 
                         width: parent.width
                         height: parent.height
-                        x: root.page ? 0 : 48
-                        opacity: root.page ? 1 : 0
+                        x: root.page && !root.lyricsOpen ? 0 : 48
+                        opacity: root.page && !root.lyricsOpen ? 1 : 0
                         visible: opacity > 0
                         page: root.page ? Object.assign({}, root.page, {
                             info: root.pageInfo
@@ -1332,10 +1356,38 @@ Scope {
                             }
                         }
                     }
+
+                    LyricsPage {
+                        id: lyricsPage
+
+                        width: parent.width
+                        height: parent.height
+                        x: root.lyricsOpen ? 0 : 48
+                        opacity: root.lyricsOpen ? 1 : 0
+                        visible: opacity > 0
+                        shown: root.open && root.lyricsOpen
+                        onBack: root.back()
+
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: Theme.animNormal
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Theme.emphasizedDecel
+                            }
+                        }
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Theme.animFast
+                            }
+                        }
+                    }
                 }
 
                 NowPlayingBar {
                     id: bar
+
+                    lyricsOpen: root.lyricsOpen
+                    onLyrics: root.toggleLyrics()
 
                     anchors.bottom: parent.bottom
                     width: parent.width
@@ -1373,6 +1425,13 @@ Scope {
         function open(): void {
             if (!root.open)
                 root.show();
+        }
+
+        function lyrics(): void {
+            if (!root.open)
+                root.show();
+            if (!root.lyricsOpen)
+                root.toggleLyrics();
         }
     }
 }
