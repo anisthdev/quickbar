@@ -3,19 +3,19 @@ import Quickshell.Io
 import QtQuick
 import "../components"
 
-// The entertainment menu: Library and Music library open the video and
-// music libraries (Reel, MusicMenu); Play URL, the Jackett searches and
-// Music (YouTube Music, through tunes) open quickbar's own search window;
-// RetroArch NES its game list. Jellyfin switches the media server for the
-// TV (the `jellyfin` user service) on or off: it's off unless wanted, as
-// it's rarely used. Hindi films aren't listed: `ipc call search open hindi`
-// opens that search.
+// The entertainment menu: Movies/TV and Music open the video and
+// music libraries' menus (ReelMenu, MusicMenu); Search opens quickbar's search window
+// (Jackett's movies, anime, Hindi films and ebooks, and YouTube Music
+// through tunes, chosen inside it) on its last mode, and Play URL the same
+// window for a link; RetroArch NES its game list. Jellyfin switches the
+// media server for the TV (the `jellyfin` user service) on or off: it's off
+// unless wanted, as it's rarely used.
 Scope {
     id: root
 
     required property var search
     required property var games
-    required property var reel
+    required property var videos
     required property var music
 
     property bool jellyfinOn: false
@@ -28,9 +28,16 @@ Scope {
             jellyfinCheck.running = true
         entries: [
             {
-                label: "Library",
+                label: "Movies/TV",
                 icon: "applications-multimedia",
-                reel: true
+                keywords: "library video films shows",
+                videos: true
+            },
+            {
+                label: "Music",
+                icon: "multimedia-audio-player",
+                keywords: "library songs albums mpd",
+                music: true
             },
             {
                 label: "Jellyfin",
@@ -46,29 +53,11 @@ Scope {
                 search: "play"
             },
             {
-                label: "Movies/TV",
-                icon: "com.github.rafostar.Clapper",
-                search: "movies"
-            },
-            {
-                label: "Anime",
-                icon: "crunchyroll",
-                search: "anime"
-            },
-            {
-                label: "Music library",
-                icon: "multimedia-audio-player",
-                music: true
-            },
-            {
-                label: "Music",
-                icon: "appimagekit-youtube-music",
-                search: "music"
-            },
-            {
-                label: "Ebooks",
-                icon: "accessories-ebook-reader",
-                search: "books"
+                label: "Search",
+                icon: "preferences-desktop-search",
+                subtitle: "Movies, anime, Hindi, music, ebooks",
+                keywords: "movies tv anime hindi music ebooks books torrent jackett",
+                search: ""
             },
             {
                 label: "RetroArch NES",
@@ -76,7 +65,7 @@ Scope {
                 games: true
             }
         ]
-        onActivated: entry => entry.jellyfin ? root.toggleJellyfin() : entry.reel ? root.reel.show() : entry.music ? root.music.show() : entry.games ? root.games.show() : root.search.show(entry.search)
+        onActivated: entry => entry.jellyfin ? root.toggleJellyfin() : entry.videos ? root.videos.show() : entry.music ? root.music.show() : entry.games ? root.games.show() : root.search.show(entry.search)
     }
 
     function toggleJellyfin() {

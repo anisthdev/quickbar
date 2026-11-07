@@ -47,6 +47,8 @@ ShellRoot {
     }
 
     ReelMenu {
+        id: reelMenu
+
         reel: reel
     }
 
@@ -57,7 +59,7 @@ ShellRoot {
     Entertainment {
         search: mediaSearch
         games: games
-        reel: reel
+        videos: reelMenu
         music: musicMenu
     }
 

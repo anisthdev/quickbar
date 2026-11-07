@@ -7,9 +7,8 @@ import "../components"
 import "music"
 import "reel"
 
-// The video library as one of the shell's menus, beside Reel's full-screen
-// window: a panel at the bottom centre that springs open upwards, as the
-// music menu does, with tabs for Continue (what's under way), Movies,
+// The video library as one of the shell's menus: a panel at the bottom
+// centre that springs open upwards, as the music menu does, with tabs for Continue (what's under way), Movies,
 // Series and Anime, each a grid of posters with how far it's been watched.
 // A title opens as a page over its tab (TitlePage): a movie's details, or a
 // series' seasons and episodes. Playing goes through Reel, in mpv: a movie
