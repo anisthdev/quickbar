@@ -4,8 +4,8 @@ import QtQuick
 import "../components"
 
 // The app launcher, where rofi's drun opens: every app with its icon, the
-// most launched first. It opens typing (see LauncherWindow for the keys),
-// and matches names first, then descriptions and keywords.
+// most launched first. Keys as in the other menus (see LauncherWindow); the
+// filter matches names first, then descriptions and keywords.
 //
 // Launch counts are quickbar's own, kept in
 // ~/.local/state/quickbar/launches.json (rofi's were folded in once).
@@ -49,7 +49,6 @@ Scope {
         placeholder: "Search your apps…"
         panelWidth: 440
         maxRows: 6
-        startTyping: true
         entries: DesktopEntries.applications.values.filter(a => !a.noDisplay).map(a => ({
                     id: a.id.replace(/\.desktop$/, ""),
                     label: a.name,

@@ -85,7 +85,7 @@ Scope {
         rows.push({
             key: "token",
             label: "Let it share this again without asking",
-            trailing: restore ? "On" : "Off",
+            on: restore,
             accent: true,
             kind: "token"
         });

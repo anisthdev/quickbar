@@ -13,7 +13,7 @@ import ".."
 // focused: / or i (or a click) focuses it, typing filters, Enter runs, Esc
 // goes back to the list keeping the filter, and Esc there clears it. With
 // `startTyping` it opens in the field instead, for menus mostly used by
-// typing (the app launcher). The mouse works too.
+// typing (the calculator). The mouse works too.
 //
 // Matches rank by where the typed text falls: the start of the label,
 // then the start of a word in it, then anywhere in it, then an entry's
@@ -21,7 +21,8 @@ import ".."
 //
 // entries: [{ label, icon }, …] plus whatever the owner needs; icon is a
 // theme icon name or a path, `emoji` shows in its place, and `subtitle`, `trailing` (a short state,
-// e.g. "On"), `keys` (keycaps, e.g. ["Super", "Q"]), `trailingIcon` (one
+// e.g. "80%"), `on` (true or false: a switch, for a row that turns a thing
+// on and off), `keys` (keycaps, e.g. ["Super", "Q"]), `trailingIcon` (one
 // of icons/, e.g. a pin), `checked` (a check mark) and `accent` (a row standing apart in the tertiary colour, as a
 // page's on/off switch) are optional. Rows with a `section` are grouped
 // under it as a heading, each run of one section its own group. Long lists scroll
@@ -99,7 +100,13 @@ Scope {
         stopFilter();
         list.currentIndex = index ?? 0;
         revealed = false;
-        Qt.callLater(() => root.revealed = true);
+        Qt.callLater(() => {
+            root.revealed = true;
+            // The new rows are laid out from the pick, as the top one;
+            // whatever fits above it comes back in view
+            if (list.currentIndex < list.rows)
+                list.positionViewAtBeginning();
+        });
     }
 
     onPromptChanged: {
@@ -633,6 +640,11 @@ Scope {
                                     item.settled = true;
                             })
 
+                            function pick() {
+                                root.pickModifiers = 0;
+                                root.run(index);
+                            }
+
                             width: list.width
                             rowHeight: big ? list.bigRowHeight : list.rowHeight
                             // Its own easing below moves the content with it
@@ -676,10 +688,7 @@ Scope {
                             drawBackground: false
                             shown: root.open && root.revealed
                             revealIndex: Math.min(index, 8)
-                            onClicked: {
-                                root.pickModifiers = 0;
-                                root.run(index);
-                            }
+                            onClicked: pick()
                             onHoveredChanged: if (hovered)
                                 list.currentIndex = index
 
@@ -688,6 +697,13 @@ Scope {
                                 text: item.modelData.trailing ?? ""
                                 color: Theme.on_surface_variant
                                 font.pixelSize: 13
+                            }
+
+                            // Runs the row, whose owner changes the state
+                            Switch {
+                                visible: item.modelData.on !== undefined
+                                checked: item.modelData.on ?? false
+                                onToggled: item.pick()
                             }
 
                             // Keycaps

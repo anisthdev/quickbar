@@ -47,6 +47,7 @@ Scope {
         refresh();
         menu.replay(0);
         menu.show();
+        menu.select(firstPick());
     }
 
     function hide() {
@@ -76,7 +77,13 @@ Scope {
         menu.prompt = "";
         refresh();
         // Back on the first page, the pick is the page just left
-        menu.replay(page === "" ? Math.max(0, home.findIndex(e => e.key === from)) : 0);
+        menu.replay(page === "" ? Math.max(0, home.findIndex(e => e.key === from)) : firstPick());
+    }
+
+    // A page opens on what's listed in it: past its on/off switch, if
+    // there's anything below that
+    function firstPick() {
+        return page !== "" && entries.length > 1 && entries[0].on !== undefined ? 1 : 0;
     }
 
     function refresh() {
@@ -95,10 +102,6 @@ Scope {
     property bool handoffOn: false
     property bool nightlightOn: false
     property int chargeLimit: 100
-
-    function onOff(on) {
-        return on ? "On" : "Off";
-    }
 
     readonly property var home: [
         {
@@ -135,33 +138,33 @@ Scope {
             key: "handoff",
             label: "Handoff",
             icon: "handoff",
-            trailing: onOff(handoffOn)
+            on: handoffOn
         },
         {
             key: "nightlight",
             label: "Nightlight",
             icon: "cs-nightlight",
-            trailing: onOff(nightlightOn)
+            on: nightlightOn
         },
         {
             key: "lightmode",
             label: "Light mode",
             icon: "preferences-desktop-theme",
-            trailing: onOff(Theme.light)
+            on: Theme.light
         },
         {
             key: "charge",
             label: "Charge limit",
             icon: "battery",
             subtitle: chargeLimit < 100 ? `Stops at ${chargeLimit}%` : "Charges to 100%",
-            trailing: onOff(chargeLimit < 100)
+            on: chargeLimit < 100
         },
         {
             key: "keepawake",
             label: "Keep awake",
             icon: "caffeine",
             subtitle: keepAwake.on ? "No dimming, locking or sleep" : "Locks and sleeps when idle",
-            trailing: onOff(keepAwake.on)
+            on: keepAwake.on
         },
         {
             key: "power",
@@ -200,7 +203,7 @@ Scope {
             label: "Keyboard",
             icon: "onboard",
             subtitle: "Type on the screen",
-            trailing: onOff(keyboard.open)
+            on: keyboard.open
         }
     ]
 
@@ -241,7 +244,7 @@ Scope {
             label: "Use Wi-Fi",
             icon: "network-wireless",
             accent: true,
-            trailing: onOff(Networking.wifiEnabled)
+            on: Networking.wifiEnabled
         }
     ].concat(networks.map(n => ({
                 key: `net:${n.name}`,
@@ -286,7 +289,7 @@ Scope {
             label: "Use Bluetooth",
             icon: "bluetooth",
             accent: true,
-            trailing: onOff(btOn)
+            on: btOn
         }
     ].concat(btOn ? btDevices.map(d => ({
                     key: `bt:${d.address}`,

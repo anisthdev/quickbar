@@ -24,6 +24,7 @@ Scope {
         id: launcher
 
         title: "Entertainment"
+        entryKey: "label"
         onOpenChanged: if (open)
             jellyfinCheck.running = true
         entries: [
@@ -43,7 +44,7 @@ Scope {
                 label: "Jellyfin",
                 icon: "org.jellyfin.JellyfinServer",
                 subtitle: root.jellyfinOn ? "Serving the library to the TV" : "Media server for the TV",
-                trailing: root.jellyfinOn ? "On" : "Off",
+                on: root.jellyfinOn,
                 keywords: "server tv",
                 jellyfin: true
             },
