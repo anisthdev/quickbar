@@ -27,6 +27,10 @@ import "reel"
 // it from its beginning, p carries on, w marks the episode seen or not, W
 // marks every one up to it seen, t picks the languages, h, Esc or
 // Backspace go back. ? lists the keys.
+//
+// f turns it into a window of its own (and back): an ordinary Hyprland
+// window to move, tile and leave open beside mpv, with as many posters
+// across as fit. It opens the way it was left.
 Scope {
     id: root
 
@@ -52,10 +56,12 @@ Scope {
         }
     ]
     readonly property var sorts: ["Recently played", "Recently added", "Title", "Rating", "Year"]
-    readonly property int columns: 6
+    // Window mode (f): in a window of its own rather than over everything
+    property bool windowed: saved.windowed
+    readonly property int columns: windowed ? Math.max(3, Math.floor((panel.width - 40) / 175)) : 6
     // [keys, what they do], for ? (KeyHelp)
-    readonly property var gridBindings: [["h j k l", "Move"], ["gg G  Ctrl+d/u", "The ends, two rows"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["s", "Change the order"], ["1-4  Tab", "Switch tabs"], ["/  i", "Filter by title (Esc back to the grid)"], ["Esc  q", "Clear the filter, then close"]]
-    readonly property var pageBindings: [["j k  gg G", "Move through the episodes"], ["[  ]", "The season before, after"], ["Enter  l", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["Esc  h  Backspace", "Back"], ["q", "Close"]]
+    readonly property var gridBindings: [["h j k l", "Move"], ["gg G  Ctrl+d/u", "The ends, two rows"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["s", "Change the order"], ["1-4  Tab", "Switch tabs"], ["/  i", "Filter by title (Esc back to the grid)"], ["f", "A window of its own, or back over everything"], ["Esc  q", "Clear the filter, then close"]]
+    readonly property var pageBindings: [["j k  gg G", "Move through the episodes"], ["[  ]", "The season before, after"], ["Enter  l", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["f", "A window of its own, or back over everything"], ["Esc  h  Backspace", "Back"], ["q", "Close"]]
 
     property bool open: false
     property int tab: saved.tab
@@ -126,6 +132,24 @@ Scope {
 
     function toggle() {
         open ? hide() : show();
+    }
+
+    // f: over everything, or in a window of its own; what's on show stays
+    function toggleWindowed() {
+        windowed = !windowed;
+        saved.windowed = windowed;
+        if (!open)
+            return;
+        openAnim.stop();
+        closeAnim.stop();
+        if (windowed) {
+            window.reveal = 0;
+            window.visible = false;
+        } else {
+            window.visible = true;
+            openAnim.restart();
+        }
+        Qt.callLater(() => keys.forceActiveFocus());
     }
 
     function startFilter() {
@@ -357,6 +381,9 @@ Scope {
         case "q":
             hide();
             return true;
+        case "f":
+            toggleWindowed();
+            return true;
         case "o":
             if (!page)
                 openPage(current);
@@ -432,6 +459,7 @@ Scope {
 
         property int tab: 1
         property int sort: 0
+        property bool windowed: false
     }
 
     Timer {
@@ -459,12 +487,15 @@ Scope {
         // Blurred, without Hyprland's layer slide (see looknfeel.lua)
         WlrLayershell.namespace: "quickbar-overlay"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: root.open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: root.open && !root.windowed ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         Connections {
             target: root
 
+            // In window mode the window shows instead (floating)
             function onOpenChanged() {
+                if (root.windowed)
+                    return;
                 if (root.open) {
                     closeAnim.stop();
                     window.visible = true;
@@ -508,19 +539,22 @@ Scope {
         Rectangle {
             id: panel
 
-            // Two rows of posters; a page gets the same room
+            // Two rows of posters, and a page gets the same room; in a
+            // window, as much as the window has
             readonly property real cellWidth: (width - 40) / root.columns
             readonly property real cellHeight: (cellWidth - 16) * 1.5 + 16 + 44
-            readonly property real contentHeight: 2 * cellHeight
-            readonly property real fullHeight: Math.min(window.height - 32 - 60, 26 + header.height + fieldBox.height + 12 + contentHeight + 20)
+            readonly property real contentHeight: root.windowed ? floating.height - 26 - header.height - fieldBox.height - 12 - 20 : 2 * cellHeight
+            readonly property real fullHeight: root.windowed ? floating.height : Math.min(window.height - 32 - 60, 26 + header.height + fieldBox.height + 12 + contentHeight + 20)
 
-            // Bottom centre, where the shell's menus open, growing upwards
+            // Bottom centre, where the shell's menus open, growing upwards;
+            // or the whole of its own window
+            parent: root.windowed ? floating.contentItem : window.contentItem
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: 16
-            width: Math.min(1000, window.width - 32)
-            height: Math.max(0, fullHeight * window.reveal)
-            radius: Theme.cardRadius
+            anchors.bottomMargin: root.windowed ? 0 : 16
+            width: root.windowed ? parent.width : Math.min(1000, window.width - 32)
+            height: root.windowed ? parent.height : Math.max(0, fullHeight * window.reveal)
+            radius: root.windowed ? 0 : Theme.cardRadius
             color: Theme.surface_container
             clip: true
 
@@ -834,7 +868,7 @@ Scope {
                                 width: grid.cellWidth
                                 height: grid.cellHeight
                                 item: modelData
-                                live: window.visible
+                                live: window.visible || floating.visible
                                 current: index === grid.currentIndex
                                 status: root.statusOf(modelData)
                                 progress: root.progressOf(modelData)
@@ -864,7 +898,7 @@ Scope {
                         opacity: root.page ? 1 : 0
                         visible: opacity > 0
                         item: root.page
-                        live: window.visible
+                        live: window.visible || floating.visible
                         onPlay: (index, fromStart) => root.play(root.page, index, fromStart)
                         onAction: id => root.pageAction(id)
                         onBack: root.back()
@@ -902,6 +936,36 @@ Scope {
         }
     }
 
+    // Window mode: the panel, moved into an ordinary window
+    FloatingWindow {
+        id: floating
+
+        title: "Videos"
+        // Set rather than bound: closing it from Hyprland sets it too
+        visible: false
+        implicitWidth: 1100
+        implicitHeight: 780
+        minimumSize: Qt.size(560, 480)
+        color: Theme.surface_container
+
+        onVisibleChanged: if (visible)
+            Qt.callLater(() => keys.forceActiveFocus())
+        // Closed from Hyprland (killactive, the close button)
+        onClosed: root.open = false
+
+        Connections {
+            target: root
+
+            function onOpenChanged() {
+                floating.visible = root.open && root.windowed;
+            }
+
+            function onWindowedChanged() {
+                floating.visible = root.open && root.windowed;
+            }
+        }
+    }
+
     // `qs -c quickbar ipc call reelmenu toggle`, e.g. from Super+M
     IpcHandler {
         target: "reelmenu"
@@ -913,6 +977,11 @@ Scope {
         function open(): void {
             if (!root.open)
                 root.show();
+        }
+
+        // Over everything, or a window of its own
+        function toggleWindowed(): void {
+            root.toggleWindowed();
         }
     }
 }

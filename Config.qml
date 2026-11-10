@@ -28,6 +28,10 @@ Singleton {
     // that shows the phone's screen (scrcpy, a scratchpad); without it the
     // chip isn't clickable
     property alias phoneMirror: adapter.phoneMirror
+    // The scores a title's page in the video menu shows as badges, in this
+    // order, out of "imdb", "rt" (Rotten Tomatoes), "metacritic", "mal"
+    // (MyAnimeList, anime only) and "tmdb"; ones not known are left out
+    property alias reelRatings: adapter.reelRatings
 
     FileView {
         path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickbar/config.json"
@@ -42,6 +46,7 @@ Singleton {
             property var scratchIcons: ({})
             property var glyphFonts: []
             property string phoneMirror: ""
+            property var reelRatings: ["imdb", "mal"]
         }
     }
 }
