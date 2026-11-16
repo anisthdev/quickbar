@@ -624,7 +624,8 @@ Scope {
             width: root.windowed ? parent.width : Math.min(1000, window.width - 32)
             height: root.windowed ? parent.height : Math.max(0, fullHeight * window.reveal)
             radius: root.windowed ? 0 : Theme.cardRadius
-            color: Theme.surface_container
+            // Solid in a window, as an app is; see-through over everything
+            color: root.windowed ? Qt.rgba(Theme.surface_container.r, Theme.surface_container.g, Theme.surface_container.b, 1) : Theme.surface_container
             clip: true
 
             // Swallow clicks on the panel itself
@@ -1060,7 +1061,7 @@ Scope {
         implicitWidth: 1100
         implicitHeight: 780
         minimumSize: Qt.size(560, 480)
-        color: Theme.surface_container
+        color: Qt.rgba(Theme.surface_container.r, Theme.surface_container.g, Theme.surface_container.b, 1)
 
         onVisibleChanged: if (visible)
             Qt.callLater(() => keys.forceActiveFocus())
