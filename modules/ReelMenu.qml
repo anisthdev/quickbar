@@ -30,7 +30,12 @@ import "reel"
 //
 // f turns it into a window of its own (and back): an ordinary Hyprland
 // window to move, tile and leave open beside mpv, with as many posters
-// across as fit. It opens the way it was left.
+// across as fit. It opens the way it was left. There it looks more like a
+// streaming app: Continue gives way to Home (HomeView: big cards across the
+// top, then shelves; j/k between shelves, h/l along one, a for all of a
+// shelf), / searches the whole library, and a title's page takes the whole
+// window in the title's own colours (TitleScreen), its episodes as cards
+// across (h/l or j/k along them, Esc back).
 Scope {
     id: root
 
@@ -61,6 +66,8 @@ Scope {
     readonly property int columns: windowed ? Math.max(3, Math.floor((panel.width - 40) / 175)) : 6
     // [keys, what they do], for ? (KeyHelp)
     readonly property var gridBindings: [["h j k l", "Move"], ["gg G  Ctrl+d/u", "The ends, two rows"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["s", "Change the order"], ["1-4  Tab", "Switch tabs"], ["/  i", "Filter by title (Esc back to the grid)"], ["f", "A window of its own, or back over everything"], ["Esc  q", "Clear the filter, then close"]]
+    readonly property var homeBindings: [["j k", "Between shelves"], ["h l", "Along a shelf (the big cards page round)"], ["gg G  Ctrl+d/u", "The first and last shelf, a few shelves"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["a", "All of the shelf"], ["1-4  Tab", "Switch tabs"], ["/  i", "Search the whole library"], ["f", "Back over everything"], ["Esc  q", "Close"]]
+    readonly property var widePageBindings: [["h l  j k", "Along the episodes"], ["gg G", "The first, the last episode"], ["[  ]", "The season before, after"], ["Enter", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["f", "Back over everything"], ["Esc  Backspace", "Back"], ["q", "Close"]]
     readonly property var pageBindings: [["j k  gg G", "Move through the episodes"], ["[  ]", "The season before, after"], ["Enter  l", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["f", "A window of its own, or back over everything"], ["Esc  h  Backspace", "Back"], ["q", "Close"]]
 
     property bool open: false
@@ -71,6 +78,14 @@ Scope {
     // The title whose page is open, by id, so it follows the model
     property string pageId: ""
     readonly property var page: pageId ? reel.model.items.find(i => i.id === pageId) ?? null : null
+    // The page's look: the menu's, or the window's
+    readonly property Item pageView: windowed ? widePage : narrowPage
+    // In the window, Home in Continue's place, unless searching or seeing
+    // all of a shelf
+    readonly property bool homeShown: windowed && tab === 0 && browseKey === "" && query === ""
+    // All of a shelf of Home's (a), by its key
+    property string browseKey
+    readonly property var browse: browseKey ? home.shelves.find(s => s.key === browseKey) ?? null : null
     // What the right of the header says for a moment, e.g. "Marked seen"
     property string flash
 
@@ -80,7 +95,12 @@ Scope {
     readonly property var items: {
         const category = tabs[tab].category;
         let all;
-        if (!category) {
+        if (browse) {
+            all = browse.all ?? browse.items;
+        } else if (!category && windowed) {
+            // Home's search: the whole library
+            all = query === "" ? [] : reel.model.items.slice().sort((a, b) => b.lastPlayed - a.lastPlayed || (b.added ?? 0) - (a.added ?? 0));
+        } else if (!category) {
             all = reel.rows.find(r => r.name === "Continue watching")?.items ?? [];
         } else {
             all = reel.model.items.filter(i => i.category === category);
@@ -106,7 +126,11 @@ Scope {
                     r: rank(item)
                 })).filter(m => m.r >= 0).sort((a, b) => a.r - b.r || a.i - b.i).map(m => m.item);
     }
-    readonly property var current: items[grid.currentIndex] ?? null
+    readonly property var current: homeShown ? home.current : items[grid.currentIndex] ?? null
+
+    function tabLabel(index) {
+        return windowed && index === 0 ? "Home" : tabs[index].label;
+    }
 
     // The pick to the first title, with nothing to keep it on
     function toFirst() {
@@ -120,6 +144,7 @@ Scope {
         field.text = "";
         flash = "";
         pageId = "";
+        browseKey = "";
         filtering = false;
         open = true;
         toFirst();
@@ -149,6 +174,10 @@ Scope {
             window.visible = true;
             openAnim.restart();
         }
+        browseKey = "";
+        // The other look's page, at the same episode
+        if (page)
+            Qt.callLater(() => pageView.showEpisode(Math.max(0, page.next)));
         Qt.callLater(() => keys.forceActiveFocus());
     }
 
@@ -165,12 +194,17 @@ Scope {
 
     function switchTo(index) {
         pageId = "";
+        browseKey = "";
         tab = (index + tabs.length) % tabs.length;
         saved.tab = tab;
         toFirst();
     }
 
     function changeSort() {
+        if (homeShown)
+            return say("Home keeps its own order");
+        if (browse)
+            return say(`${browse.label} keeps its own order`);
         if (tab === 0)
             return say("Continue keeps the latest first");
         sort = (sort + 1) % sorts.length;
@@ -230,6 +264,20 @@ Scope {
 
     function back() {
         pageId = "";
+    }
+
+    // a: all of a Home shelf; a library row is its tab
+    function showAll(shelf) {
+        if (!shelf?.all)
+            return;
+        pageId = "";
+        if (shelf.row) {
+            const i = tabs.findIndex(t => t.category === shelf.row);
+            if (i >= 0)
+                return switchTo(i);
+        }
+        browseKey = shelf.key;
+        toFirst();
     }
 
     // A movie resumes (or starts over); a series plays from the episode,
@@ -321,6 +369,15 @@ Scope {
         if (page || event.modifiers & Qt.ControlModifier)
             return false;
         const t = event.text;
+        if (homeShown) {
+            if (t === "h" || event.key === Qt.Key_Left)
+                home.along(-1);
+            else if (t === "l" || event.key === Qt.Key_Right)
+                home.along(1);
+            else
+                return false;
+            return true;
+        }
         if (t === "h" || event.key === Qt.Key_Left)
             grid.moveCurrentIndexLeft();
         else if (t === "l" || event.key === Qt.Key_Right)
@@ -338,7 +395,7 @@ Scope {
         const ctrl = event.modifiers & Qt.ControlModifier;
         const t = event.text;
         if (t === "?" || event.key === Qt.Key_F1) {
-            help.show(page ? pageBindings : gridBindings);
+            help.show(page ? (windowed ? widePageBindings : pageBindings) : homeShown ? homeBindings : gridBindings);
             return true;
         }
         if (ctrl && event.key === Qt.Key_W) {
@@ -347,6 +404,11 @@ Scope {
         }
         if (gridKey(event))
             return true;
+        // The window's page: the episodes run across
+        if (page && windowed && !ctrl && (t === "h" || t === "l" || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+            listKeys.move(t === "l" || event.key === Qt.Key_Right ? 1 : -1);
+            return true;
+        }
         // On a page, the keys move the episodes; a movie's has none
         if (page?.kind === "series" && listKeys.handle(event))
             return true;
@@ -364,14 +426,17 @@ Scope {
             activate();
             return true;
         }
-        if (page && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || t === "h")) {
+        if (page && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || t === "h" && !windowed)) {
             back();
             return true;
         }
         if (event.key === Qt.Key_Escape) {
             if (field.text !== "")
                 field.text = "";
-            else
+            else if (browseKey !== "") {
+                browseKey = "";
+                toFirst();
+            } else
                 hide();
             return true;
         }
@@ -418,6 +483,10 @@ Scope {
         case "s":
             if (!page)
                 changeSort();
+            return true;
+        case "a":
+            if (homeShown)
+                showAll(home.shelf);
             return true;
         case "/":
         case "i":
@@ -563,6 +632,27 @@ Scope {
                 anchors.fill: parent
             }
 
+            // The window's page: all of it, in the title's colours, under
+            // the pickers
+            TitleScreen {
+                id: widePage
+
+                anchors.fill: parent
+                opacity: root.windowed && root.page ? 1 : 0
+                visible: opacity > 0
+                item: root.windowed ? root.page : null
+                live: floating.visible
+                onPlay: (index, fromStart) => root.play(root.page, index, fromStart)
+                onAction: id => root.pageAction(id)
+                onBack: root.back()
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Theme.animNormal
+                    }
+                }
+            }
+
             // Laid out at full height, so folding only uncovers it
             Item {
                 x: 20
@@ -579,8 +669,8 @@ Scope {
                 ListKeys {
                     id: listKeys
 
-                    list: root.page ? pageView.list : grid
-                    halfPage: root.page ? 3 : 2 * root.columns
+                    list: root.page ? root.pageView.list : root.homeShown ? home.list : grid
+                    halfPage: root.page ? 3 : root.homeShown ? 2 : 2 * root.columns
                 }
 
                 // The title, the tabs, and the tab's size and order (or a
@@ -590,6 +680,7 @@ Scope {
 
                     width: parent.width
                     height: 34
+                    opacity: root.windowed && root.page ? 0 : 1
 
                     Label {
                         id: title
@@ -633,7 +724,7 @@ Scope {
                                     id: chipLabel
 
                                     anchors.centerIn: parent
-                                    text: chip.modelData.label
+                                    text: root.tabLabel(chip.index)
                                     color: chip.on ? Theme.on_secondary_container : Theme.on_surface_variant
                                     font.pixelSize: 13
                                     font.weight: chip.on ? Font.DemiBold : Font.Medium
@@ -657,6 +748,10 @@ Scope {
                         text: {
                             if (root.flash)
                                 return root.flash;
+                            if (root.browse)
+                                return `${root.browse.label}  ·  ${root.count(root.items.length, "title", "titles")}  ·  Esc back`;
+                            if (root.homeShown)
+                                return `${root.count(root.reel.model.items.length, "title", "titles")}  ·  ? keys`;
                             const n = root.count(root.items.length, "title", "titles");
                             return root.tab === 0 || root.page ? n : `${n}  ·  ${root.sorts[root.sort].toLowerCase()}  s`;
                         }
@@ -759,7 +854,7 @@ Scope {
                             Label {
                                 anchors.verticalCenter: undefined
                                 visible: field.text === ""
-                                text: `Filter ${root.tabs[root.tab].label.toLowerCase()} by title or genre`
+                                text: root.windowed && root.tab === 0 && !root.browse ? "Search the whole library by title or genre" : `Filter ${root.browse ? root.browse.label.toLowerCase() : root.tabs[root.tab].label.toLowerCase()} by title or genre`
                                 color: Theme.on_surface_variant
                                 font: field.font
                             }
@@ -776,6 +871,7 @@ Scope {
                     width: parent.width
                     height: panel.contentHeight
                     clip: true
+                    visible: !(root.windowed && root.page)
 
                     Item {
                         id: tabView
@@ -799,6 +895,23 @@ Scope {
                             }
                         }
 
+                        // The window's Home, in place of the grid
+                        HomeView {
+                            id: home
+
+                            anchors.fill: parent
+                            visible: root.homeShown
+                            reel: root.reel
+                            live: floating.visible
+                            active: floating.visible && root.homeShown && !root.page
+                            rowLabels: ({
+                                    TV: "Series"
+                                })
+                            onOpen: item => root.openPage(item)
+                            onPlay: item => root.carryOn(item)
+                            onAll: shelf => root.showAll(shelf)
+                        }
+
                         // Posters, six across, the pick's fill sliding
                         // between them. Once moved to (or marked), the pick
                         // stays on its title as the list changes under it
@@ -809,6 +922,7 @@ Scope {
                             property var seen: null
 
                             anchors.fill: parent
+                            visible: !root.homeShown
                             model: root.items
                             cellWidth: panel.cellWidth
                             cellHeight: panel.cellHeight
@@ -882,7 +996,7 @@ Scope {
                         // Nothing to show, or not yet
                         Label {
                             anchors.centerIn: parent
-                            visible: grid.count === 0
+                            visible: grid.count === 0 && !root.homeShown
                             text: !root.reel.library ? "Reading the library…" : root.query ? "Nothing matches" : root.tab === 0 ? "Nothing under way: p on a title plays it" : `No ${root.tabs[root.tab].label.toLowerCase()} yet: Movies/TV search downloads them`
                             color: Theme.on_surface_variant
                             font.weight: Font.Normal
@@ -890,14 +1004,14 @@ Scope {
                     }
 
                     TitlePage {
-                        id: pageView
+                        id: narrowPage
 
                         width: parent.width
                         height: parent.height
                         x: root.page ? 0 : 48
                         opacity: root.page ? 1 : 0
                         visible: opacity > 0
-                        item: root.page
+                        item: root.windowed ? null : root.page
                         live: window.visible || floating.visible
                         onPlay: (index, fromStart) => root.play(root.page, index, fromStart)
                         onAction: id => root.pageAction(id)
