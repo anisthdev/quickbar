@@ -6,6 +6,7 @@ import ".."
 import "../components"
 import "music"
 import "reel"
+import "reel/Plan.js" as Plan
 
 // The video library as one of the shell's menus: a panel at the bottom
 // centre that springs open upwards, as the music menu does, with tabs for Continue (what's under way), Movies,
@@ -36,6 +37,10 @@ import "reel"
 // shelf), / searches the whole library, and a title's page takes the whole
 // window in the title's own colours (TitleScreen), its episodes as cards
 // across (h/l or j/k along them, Esc back).
+//
+// D (or Delete) deletes the title, on the grid, Home or its page: its files
+// to the trash, a torrent seeding them removed (scripts/reel-delete), once
+// it's confirmed (ConfirmDelete), which warns of one not seen to the end.
 Scope {
     id: root
 
@@ -65,10 +70,10 @@ Scope {
     property bool windowed: saved.windowed
     readonly property int columns: windowed ? Math.max(3, Math.floor((panel.width - 40) / 175)) : 6
     // [keys, what they do], for ? (KeyHelp)
-    readonly property var gridBindings: [["h j k l", "Move"], ["gg G  Ctrl+d/u", "The ends, two rows"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["s", "Change the order"], ["1-4  Tab", "Switch tabs"], ["/  i", "Filter by title (Esc back to the grid)"], ["f", "A window of its own, or back over everything"], ["Esc  q", "Clear the filter, then close"]]
-    readonly property var homeBindings: [["j k", "Between shelves"], ["h l", "Along a shelf (the big cards page round)"], ["gg G  Ctrl+d/u", "The first and last shelf, a few shelves"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["a", "All of the shelf"], ["1-4  Tab", "Switch tabs"], ["/  i", "Search the whole library"], ["f", "Back over everything"], ["Esc  q", "Close"]]
-    readonly property var widePageBindings: [["h l  j k", "Along the episodes"], ["gg G", "The first, the last episode"], ["[  ]", "The season before, after"], ["Enter", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["f", "Back over everything"], ["Esc  Backspace", "Back"], ["q", "Close"]]
-    readonly property var pageBindings: [["j k  gg G", "Move through the episodes"], ["[  ]", "The season before, after"], ["Enter  l", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["f", "A window of its own, or back over everything"], ["Esc  h  Backspace", "Back"], ["q", "Close"]]
+    readonly property var gridBindings: [["h j k l", "Move"], ["gg G  Ctrl+d/u", "The ends, two rows"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["D  Delete", "Delete it (to the trash, after asking)"], ["s", "Change the order"], ["1-4  Tab", "Switch tabs"], ["/  i", "Filter by title (Esc back to the grid)"], ["f", "A window of its own, or back over everything"], ["Esc  q", "Clear the filter, then close"]]
+    readonly property var homeBindings: [["j k", "Between shelves"], ["h l", "Along a shelf (the big cards page round)"], ["gg G  Ctrl+d/u", "The first and last shelf, a few shelves"], ["Enter  o", "Open the title"], ["p", "Play: resume, or the next episode"], ["w", "Mark seen or not (a series: all of it)"], ["t", "Audio and subtitle languages"], ["D  Delete", "Delete it (to the trash, after asking)"], ["a", "All of the shelf"], ["1-4  Tab", "Switch tabs"], ["/  i", "Search the whole library"], ["f", "Back over everything"], ["Esc  q", "Close"]]
+    readonly property var widePageBindings: [["h l  j k", "Along the episodes"], ["gg G", "The first, the last episode"], ["[  ]", "The season before, after"], ["Enter", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["D  Delete", "Delete the title (to the trash, after asking)"], ["f", "Back over everything"], ["Esc  Backspace", "Back"], ["q", "Close"]]
+    readonly property var pageBindings: [["j k  gg G", "Move through the episodes"], ["[  ]", "The season before, after"], ["Enter  l", "Play the episode, the rest after it (a movie: resume)"], ["P", "Play it from its beginning"], ["p", "Carry on: the next episode"], ["w", "Mark the episode (or movie) seen or not"], ["W", "Mark every episode up to it seen"], ["t", "Audio and subtitle languages"], ["D  Delete", "Delete the title (to the trash, after asking)"], ["f", "A window of its own, or back over everything"], ["Esc  h  Backspace", "Back"], ["q", "Close"]]
 
     property bool open: false
     property int tab: saved.tab
@@ -339,6 +344,35 @@ Scope {
         });
     }
 
+    // D: always asks first, saying when it hasn't been seen to the end
+    function deleteTitle(item) {
+        if (!item)
+            return;
+        let why;
+        if (Plan.seenAll(item))
+            why = item.kind === "movie" ? "You've seen it." : `You've seen all ${count(item.episodes.length, "episode", "episodes")}.`;
+        else if (item.kind === "movie")
+            why = item.position > 0 ? "You're partway through it." : "You haven't seen it yet.";
+        else {
+            const left = item.episodes.filter(e => !e.watched).length;
+            why = left === item.episodes.length ? `You haven't seen any of its ${count(left, "episode", "episodes")}.` : `${left} of its ${item.episodes.length} episodes not seen yet.`;
+        }
+        confirmDelete.ask(item.title, why, () => removeTitle(item), !Plan.seenAll(item));
+    }
+
+    function removeTitle(item) {
+        say(`Deleting ${item.title}…`);
+        reel.remove(item, result => {
+            const failed = Object.values(result.failed ?? {});
+            if (result.trashed.length > 0) {
+                if (pageId === item.id)
+                    back();
+                say(failed.length > 0 ? `${item.title}: partly deleted (${failed[0]})` : `${item.title}: in the trash${result.torrents.length > 0 ? ", torrent removed" : ""}`);
+            } else
+                say(`Couldn't delete ${item.title}: ${failed[0] ?? "nothing to delete"}`);
+        });
+    }
+
     function pageAction(id) {
         if (!page)
             return;
@@ -352,6 +386,8 @@ Scope {
             seenUpTo();
         else if (id === "tracks")
             pickTracks(page);
+        else if (id === "delete")
+            deleteTitle(page);
     }
 
     // Enter: opens the title; on a page, plays the episode (a movie resumes)
@@ -422,6 +458,10 @@ Scope {
             switchTo(tab + 1);
             return true;
         }
+        if (event.key === Qt.Key_Delete) {
+            deleteTitle(page ?? current);
+            return true;
+        }
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             activate();
             return true;
@@ -474,6 +514,9 @@ Scope {
             return true;
         case "t":
             pickTracks(page ?? current);
+            return true;
+        case "D":
+            deleteTitle(page ?? current);
             return true;
         case "[":
         case "]":
@@ -804,6 +847,8 @@ Scope {
                     readonly property bool shown: root.filtering || field.text !== ""
 
                     anchors.top: header.bottom
+                    // The window's page covers it all
+                    opacity: root.windowed && root.page ? 0 : 1
                     width: parent.width
                     height: shown ? 58 : 0
                     clip: true
@@ -1043,6 +1088,14 @@ Scope {
 
                 KeyHelp {
                     id: help
+
+                    anchors.margins: -12
+                    onFinished: keys.forceActiveFocus()
+                }
+
+                // D's warning, for a title not seen to the end
+                ConfirmDelete {
+                    id: confirmDelete
 
                     anchors.margins: -12
                     onFinished: keys.forceActiveFocus()

@@ -5,8 +5,8 @@ import "../../components"
 import "Plan.js" as Plan
 
 // One of the big cards across the top of the video window's home: the
-// title's backdrop over the card's right, fading left into a card of its
-// own colours (Tint), and over that its logo (or name), scores, what it is,
+// title's backdrop across it, darkened behind the words in its own colours
+// (Tint), and over that its logo (or name), scores, what it is,
 // a few lines of its story, Play and the corner figure (how long's left,
 // the episode up next, its score). The picked card wears an accent ring.
 Item {
@@ -42,12 +42,12 @@ Item {
         Image {
             id: backdrop
 
-            anchors.right: parent.right
-            width: parent.width * 0.7
-            height: parent.height
+            anchors.fill: parent
             source: root.live && root.item?.backdrop ? `file://${root.item.backdrop}` : ""
-            sourceSize.width: 1280
+            sourceSize.width: 1600
             fillMode: Image.PreserveAspectCrop
+            // Faces are mostly in a backdrop's upper part
+            verticalAlignment: Image.AlignTop
             asynchronous: true
             opacity: status === Image.Ready ? 1 : 0
 
@@ -57,21 +57,22 @@ Item {
                 }
             }
 
-            // Into the card's colour, leftwards and down
+            // Across the whole card, darkened only behind the words on its
+            // left (in the card's colour), and toward the foot
             Rectangle {
                 anchors.fill: parent
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop {
                         position: 0
-                        color: root.tint.glow
+                        color: Qt.alpha(root.tint.glow, 0.88)
                     }
                     GradientStop {
-                        position: 0.45
-                        color: Qt.alpha(root.tint.glow, 0.55)
+                        position: Math.min(0.6, (info.x + info.width) / backdrop.width)
+                        color: Qt.alpha(root.tint.glow, 0.4)
                     }
                     GradientStop {
-                        position: 0.8
+                        position: Math.min(0.85, (info.x + info.width) / backdrop.width + 0.2)
                         color: "transparent"
                     }
                 }
@@ -89,7 +90,7 @@ Item {
                     }
                     GradientStop {
                         position: 1
-                        color: Qt.alpha(root.tint.glow, 0.85)
+                        color: Qt.alpha(root.tint.glow, 0.6)
                     }
                 }
             }

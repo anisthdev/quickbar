@@ -122,6 +122,12 @@ Item {
             icon: "translate",
             primary: false
         });
+        list.push({
+            id: "delete",
+            label: "Delete  D",
+            icon: "delete",
+            primary: false
+        });
         return list;
     }
 

@@ -169,6 +169,17 @@ Scope {
         });
     }
 
+    // Delete a title: its files to the trash, a torrent seeding them
+    // removed, the library rescanned (scripts/reel-delete). done gets
+    // {trashed, torrents, failed}
+    function remove(item, done) {
+        const files = item.kind === "movie" ? [item.path] : item.episodes.map(e => e.path);
+        deleter.createObject(root, {
+            command: [Quickshell.shellDir + "/scripts/reel-delete"].concat(files),
+            done
+        });
+    }
+
     function runtime(seconds) {
         const m = Math.round(seconds / 60);
         return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
@@ -223,6 +234,41 @@ Scope {
             onExited: {
                 root.refresh();
                 destroy();
+            }
+        }
+    }
+
+    // One per deletion; what became of it to the caller, then the progress
+    // read again
+    Component {
+        id: deleter
+
+        Process {
+            id: deletion
+
+            property var done: null
+
+            running: true
+            // Answered once all it printed is in (a crash prints nothing)
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    let result;
+                    try {
+                        result = JSON.parse(text);
+                    } catch (e) {
+                        result = {
+                            trashed: [],
+                            torrents: [],
+                            failed: {
+                                "": "reel-delete gave no answer"
+                            }
+                        };
+                    }
+                    if (deletion.done)
+                        deletion.done(result);
+                    root.refresh();
+                    deletion.destroy();
+                }
             }
         }
     }

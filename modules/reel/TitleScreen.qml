@@ -104,6 +104,13 @@ Item {
             icon: "translate",
             lit: !!(i.tracks?.audio || i.tracks?.subs)
         });
+        list.push({
+            id: "delete",
+            label: "Delete",
+            key: "D",
+            icon: "delete",
+            lit: false
+        });
         return list;
     }
 

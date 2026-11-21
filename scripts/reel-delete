@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Delete titles from the video library (modules/ReelMenu.qml): to the trash,
+so a mistake can be undone from the file manager.
+
+  reel-delete FILE...    a title's video files (a movie's, a series'
+                         episodes): what's deleted is the file or folder
+                         each sits in directly under its row folder, the
+                         title's own (a movie's folder, a series' folders)
+
+Only files in one of the library's row folders (~/.config/reel/library.toml)
+are taken; anything else is refused, and a row folder itself never goes.
+A torrent Transmission seeds from what goes is removed first (its data
+kept, for the trash to take), so it isn't left erroring over missing
+files. Then reel-scan, so the library forgets it.
+
+Prints JSON: {"trashed": [PATH...], "torrents": [NAME...], "failed": {PATH: why}}
+and exits 1 when anything failed.
+"""
+import json
+import subprocess
+import sys
+import tomllib
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ROWS_FILE = Path("~/.config/reel/library.toml").expanduser()
+RPC = "http://127.0.0.1:9091/transmission/rpc"
+
+
+def row_folders():
+    rows = tomllib.loads(ROWS_FILE.read_text()).get("rows") or []
+    folders = []
+    for row in rows:
+        paths = row.get("path") or []
+        for p in [paths] if isinstance(paths, str) else paths:
+            folders.append(Path(p).expanduser().resolve())
+    return folders
+
+
+def rpc(method, arguments, session=""):
+    request = urllib.request.Request(RPC, json.dumps({"method": method, "arguments": arguments}).encode(), {"X-Transmission-Session-Id": session})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as reply:
+            return json.load(reply)["arguments"], session
+    except urllib.error.HTTPError as e:
+        # The daemon hands out its session id on the first request
+        if e.code == 409 and not session:
+            return rpc(method, arguments, e.headers.get("X-Transmission-Session-Id", ""))
+        raise
+
+
+def remove_torrents(paths):
+    """Torrents whose data is one of `paths` or inside one, removed (data
+    kept). Returns their names; none when Transmission isn't running."""
+    try:
+        got, session = rpc("torrent-get", {"fields": ["id", "name", "downloadDir"]})
+    except (OSError, ValueError):
+        return []
+    ids, names = [], []
+    for t in got.get("torrents", []):
+        root = (Path(t["downloadDir"]) / t["name"]).resolve()
+        if any(root == p or p in root.parents for p in paths):
+            ids.append(t["id"])
+            names.append(t["name"])
+    if ids:
+        rpc("torrent-remove", {"ids": ids, "delete-local-data": False}, session)
+    return names
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    folders = row_folders()
+    wanted, failed = [], {}
+    for arg in sys.argv[1:]:
+        path = Path(arg).expanduser()
+        if not path.exists():
+            failed[arg] = "not there"
+            continue
+        # Up to what sits directly in its row folder
+        entry = path.resolve()
+        while entry.parent not in folders and entry != entry.parent:
+            entry = entry.parent
+        if entry == entry.parent or entry in folders:
+            failed[arg] = "not in the library"
+        elif entry not in wanted:
+            wanted.append(entry)
+
+    torrents = remove_torrents(wanted) if wanted else []
+    trashed = []
+    for path in wanted:
+        result = subprocess.run(["gio", "trash", "--", str(path)], capture_output=True, text=True)
+        if result.returncode == 0:
+            trashed.append(str(path))
+        else:
+            failed[str(path)] = result.stderr.strip() or "gio trash failed"
+
+    if trashed:
+        subprocess.run(["reel-scan"], capture_output=True)
+    print(json.dumps({"trashed": trashed, "torrents": torrents, "failed": failed}))
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()
