@@ -62,8 +62,9 @@ Singleton {
         run(["log", problem, result].concat(extra ?? []), true);
     }
 
+    // Starts the clock and opens the problem's page (LeetCode) in the browser
     function startTimer(problem) {
-        run(["timer", "start"].concat(problem ? [problem] : []), false);
+        run(["timer", "start"].concat(problem ? [problem, "--open"] : []), false);
     }
 
     function stopTimer() {

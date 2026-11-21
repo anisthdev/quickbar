@@ -319,7 +319,7 @@ Scope {
                 }, {
                     key: "timer",
                     label: timer ? "Stop the timer" : "Time an attempt",
-                    subtitle: timer ? "Without logging it" : `${PrepState.timerMinutes} minutes, as in an interview`,
+                    subtitle: timer ? "Without logging it" : `${PrepState.timerMinutes} minutes; opens it on LeetCode`,
                     icon: "alarm-timer"
                 }, {
                     key: "study",
