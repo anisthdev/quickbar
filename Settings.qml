@@ -19,6 +19,8 @@ Singleton {
     property alias fileChooserReversed: adapter.fileChooserReversed
     property alias fileChooserHidden: adapter.fileChooserHidden
     property alias fileChooserFolder: adapter.fileChooserFolder
+    // The prep pill in the bar; off on days off (Super+Shift+D)
+    property alias showPrep: adapter.showPrep
 
     FileView {
         path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/quickbar/settings.json"
@@ -36,6 +38,7 @@ Singleton {
             property bool fileChooserReversed: false
             property bool fileChooserHidden: false
             property string fileChooserFolder: ""
+            property bool showPrep: true
         }
     }
 }

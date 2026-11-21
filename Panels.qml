@@ -11,4 +11,6 @@ Singleton {
     property var musicMenu: null
     // The lock screen (modules/LockScreen.qml): lock() locks the session
     property var lockScreen: null
+    // The prep menu (modules/PrepMenu.qml): toggle(), show(page), logProblem(slug)
+    property var prepMenu: null
 }

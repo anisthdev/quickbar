@@ -79,6 +79,7 @@ optional. `/usr/lib/quickbar/claude-usage` writes `claude.json`.
 | Searching torrents | Jackett | its Torznab API, key and URL in `$XDG_CONFIG_HOME/quickbar/jackett` |
 | The video library | reel | `reel-scan` on PATH; `$XDG_CACHE_HOME/reel/library.json` (reel's README has the format) |
 | Playback progress | mpv | `$XDG_STATE_HOME/mpv/watch_later/` and `watch_history.jsonl`, mpv's documented files; marking a video watched removes its resume file |
+| Interview prep | prep | `prep status\|problems\|stories --json` on PATH, read again when `$XDG_DATA_HOME/prep/.changed` changes; every change runs `prep …` (prep's README has the format) |
 | The phone's Live Updates | handoff | `$XDG_RUNTIME_DIR/handoff/live.json` (handoff's README has the format) |
 | The clipboard history | clipse | `$XDG_CONFIG_HOME/clipse/clipboard_history.json`, read only; pins are quickbar's own |
 | Music | mpd | `mpc` |

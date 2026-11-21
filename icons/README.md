@@ -115,3 +115,5 @@ The region selector's `content_copy`, `document_scanner`, `translate` and
 `image_search`, and the timer and to-do's `timer`, `check_box`,
 `check_box_outline_blank`, `add`, `stop` and `checklist`, are Material Symbols
 Rounded (filled), from @material-symbols/svg-400 0.48.1, filled white.
+
+`code` (the prep tracker's pill) is Material Symbols, outlined.

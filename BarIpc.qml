@@ -52,6 +52,14 @@ Singleton {
     }
 
     IpcHandler {
+        target: "prepcard"
+
+        function toggle(): void {
+            root.toggle("prepcard");
+        }
+    }
+
+    IpcHandler {
         target: "downloads"
 
         function toggle(): void {

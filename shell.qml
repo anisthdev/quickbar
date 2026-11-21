@@ -85,6 +85,8 @@ ShellRoot {
 
     QuickNote {}
 
+    PrepMenu {}
+
     Calculator {}
 
     Keybindings {}

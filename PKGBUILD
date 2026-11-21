@@ -30,6 +30,7 @@ optdepends=(
     'hyprshot: screenshots'
     'wl-screenrec: screen recording'
     'totoro-systray: the recording tray icon (tray run)'
+    'totoro-prep: the interview prep pill and menu'
     'satty: screenshot editing'
     'imv: screenshot preview'
     'hyprpicker: colour picker'

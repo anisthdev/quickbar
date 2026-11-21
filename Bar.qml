@@ -55,6 +55,7 @@ PanelWindow {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.gap
 
+        PrepPill {}
         PhoneLive {}
         Downloads {}
         Tray {}
